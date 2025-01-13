@@ -27,6 +27,7 @@
         <data android:scheme="testapp"/>
         <data android:scheme="com.testapp"/>
         <data android:scheme="exp+testapp"/>
+        <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
       </intent-filter>
     </activity>
   </application>
