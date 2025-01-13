@@ -10,16 +10,16 @@ This is the boilerplate that [Infinite Red](https://infinite.red) uses as a way 
 ## Getting Started
 
 ```bash
-yarn
-yarn start
+pnpm
+pnpm start
 ```
 
 To make things work on your local simulator, or on your phone, you need first to [run `eas build`](https://github.com/infinitered/ignite/blob/master/docs/expo/EAS.md). We have many shortcuts on `package.json` to make it easier:
 
 ```bash
-yarn build:ios:sim # build for ios simulator
-yarn build:ios:dev # build for ios device
-yarn build:ios:prod # build for ios device
+pnpm build:ios:sim # build for ios simulator
+pnpm build:ios:dev # build for ios device
+pnpm build:ios:prod # build for ios device
 ```
 
 ### `./assets` directory
