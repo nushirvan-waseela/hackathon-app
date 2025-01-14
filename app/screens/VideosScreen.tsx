@@ -11,6 +11,24 @@ import Video from "react-native-video" // Video playback component
 import { Image } from "react-native" // Image component for pictures
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
+const getFileType = async (filePath: string) => {
+  const fileData = await RNFS.readFile(filePath, "base64")
+  const buffer = Buffer.from(fileData, "base64")
+  const header = buffer.slice(0, 4).toString("hex")
+
+  switch (header) {
+    case "ffd8ffe0": // JPEG
+    case "ffd8ffe1":
+    case "ffd8ffe2":
+      return "jpg"
+    case "89504e47": // PNG
+      return "png"
+    case "52494646": // WebP
+      return "webp"
+    default:
+      return "unknown"
+  }
+}
 
 export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScreen() {
   const [videos, setVideos] = useState<any[]>([])
@@ -26,36 +44,17 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     const getData = async () => {
       try {
         console.log("id: ", id)
-        // Check if data exists in local storage
         const storedData = await AsyncStorage.getItem("CMSData")
         if (storedData) {
           const parsedData = JSON.parse(storedData)
-          console.log("Fetched from local storage:", parsedData)
-
-          // Fetch new data from the API
           const data = await fetchCMSData(id || "")
-          console.log("Fetched from API:", data)
-
-          // Replace the stored data with the latest data from the API
-          const updatedData = {
-            sheet1: data.sheet1,
-          }
-
-          // Download the files and log the updates
+          const updatedData = { sheet1: data.sheet1 }
           await downloadFiles(data.sheet1)
-
-          // Update the state with the latest data and save to storage
           setVideos(updatedData.sheet1)
           await AsyncStorage.setItem("CMSData", JSON.stringify(updatedData))
-          console.log("Data updated in storage:", updatedData)
         } else {
-          // Fetch data from API if not found in storage
           const data = await fetchCMSData(id || "")
-          console.log("Fetched from API:", data)
-
-          // Download the files and log the updates
           await downloadFiles(data.sheet1)
-
           setVideos(data.sheet1)
           await AsyncStorage.setItem("CMSData", JSON.stringify(data))
         }
@@ -64,32 +63,31 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
       }
     }
 
-    // Call getData initially
     getData()
-
-    // Set an interval to call getData every 3 seconds
-    const intervalId = setInterval(getData, 3000)
-
-    // Cleanup the interval on component unmount
-    return () => clearInterval(intervalId)
   }, [])
 
-  // Function to handle downloading files and logging the process
+  useEffect(() => {
+    if (videos.length > 0) {
+      const currentMedia = videos[currentIndex]
+      if (currentMedia.type === "image") {
+        // Show image for 3 seconds, then move to next media
+        const timer = setTimeout(handleEnd, 3000)
+        return () => clearTimeout(timer) // Clear timeout on cleanup
+      }
+    }
+  }, [currentIndex, videos])
+
   const downloadFiles = async (videos: any[]) => {
     for (const video of videos) {
-      const filePath = `${RNFS.DocumentDirectoryPath}/${video.contentId}.jpg` // Example file path (you may want to adjust this based on file type)
+      const filePath = `${RNFS.DocumentDirectoryPath}/${video.contentId}.jpg`
       const fileExists = await RNFS.exists(filePath)
 
       if (!fileExists) {
-        console.log(`Download started for item URL: ${video.link}`)
-
-        // Start the download
         try {
           await RNFS.downloadFile({
             fromUrl: video.link,
             toFile: filePath,
           }).promise
-
           console.log(`Download completed for item: ${video.title}`)
         } catch (error) {
           console.error(`Download failed for item: ${video.title}`, error)
@@ -100,22 +98,11 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     }
   }
 
-  // Function to handle moving to the next media in the loop
   const handleEnd = () => {
-    setCurrentIndex((prevIndex) => (prevIndex + 1) % videos.length) // Loop back to the first item once we reach the last
+    setCurrentIndex((prevIndex) => (prevIndex + 1) % videos.length)
   }
 
-  // Function to render the media (video or image)
   const renderMedia = (media: any) => {
-    // const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.jpg`
-    console.log(
-      "__________________________________________________________________________________________",
-    )
-    console.log("===> vidoes: ", videos)
-    console.log(
-      "__________________________________________________________________________________________",
-    )
-    console.log("----> media: ", media)
     if (media.type === "video") {
       const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.jpg`
       return (
@@ -124,7 +111,6 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
           ref={videoPlayer}
           onEnd={handleEnd}
           onLoad={(data) => {
-            // Update media size based on original video dimensions
             const { width, height } = data.naturalSize
             if (width && height) {
               setMediaSize({ width, height })
@@ -136,15 +122,12 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
       )
     } else {
       const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.jpg`
-
       Image.getSize(
         `file://${filePath}`,
-        (width, height) => {
-          // Update media size based on original image dimensions
-          setMediaSize({ width, height })
-        },
+        (width, height) => setMediaSize({ width, height }),
         (error) => {
-          console.error("Failed to get image size:", error)
+          console.error("Failed to load image or unsupported format:", error)
+          handleEnd() // Skip to next media
         },
       )
       return (
@@ -159,7 +142,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   return (
     <Screen style={$root} preset="scroll">
       <Text text="videos" />
-      {videos.length > 0 && renderMedia(videos[0])}
+      {videos.length > 0 && renderMedia(videos[currentIndex])}
     </Screen>
   )
 })
