@@ -1,17 +1,37 @@
 import { observer } from "mobx-react-lite"
-import { FC } from "react"
-import { ImageStyle, Platform, ScrollView, TextStyle, ViewStyle } from "react-native"
-import { Text, Screen } from "@/components"
+import { FC, useEffect, useState } from "react"
+import { ImageStyle, Platform, ScrollView, TextStyle, View, ViewStyle } from "react-native"
+import { Text, Screen, TextField, Button } from "@/components"
 import { isRTL } from "../i18n"
 import { AppStackScreenProps } from "../navigators"
 import { $styles, type ThemedStyle } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
+import { t } from "i18next"
+import { loadString, saveString } from "@/utils/storage"
+import { useNavigation } from "@react-navigation/native"
 
 
 interface WelcomeScreenProps extends AppStackScreenProps<"Welcome"> {}
 
 export const WelcomeScreen: FC<WelcomeScreenProps> = observer(function WelcomeScreen() {
   const { themed } = useAppTheme()
+  const navigation = useNavigation()
+
+  const id = loadString("deviceId")
+
+
+  const [deviceId, setDeviceId] = useState<string>(id || "")
+
+  const onSubmit = () => {
+    saveString("deviceId", deviceId)
+    navigation.navigate("Videos" as never)
+  }
+
+  useEffect(() => {
+    if (id) {
+    navigation.navigate("Videos" as never)
+    }
+  }, [id])
 
 
   return (
@@ -20,11 +40,14 @@ export const WelcomeScreen: FC<WelcomeScreenProps> = observer(function WelcomeSc
         <Text
           testID="welcome-heading"
           style={themed($welcomeHeading)}
-          tx="welcomeScreen:readyForLaunch"
+          tx="welcomeScreen:heading"
           preset="heading"
         />
-        <Text tx="welcomeScreen:exciting" preset="subheading" />
-        
+        <Text tx="welcomeScreen:deviceIdField" preset="subheading" />
+        <View style={themed($textFieldContainer)}>
+          <TextField value={deviceId} onChangeText={setDeviceId} style={themed($textField)} placeholder={t("welcomeScreen:deviceIdPlaceholder")} />
+        <Button style={themed($button)} onPress={onSubmit} text="Submit" />
+        </View>
       </ScrollView>
     </Screen>
   )
@@ -34,8 +57,9 @@ const $topContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexShrink: 1,
   flexGrow: 1,
   flexBasis: "65%",
-  justifyContent: "center",
+  justifyContent: "flex-start",
   alignItems: "center",
+  paddingTop: 100,
   paddingHorizontal: Platform.isTV ? spacing.xxl : spacing.lg * 2,
 })
 
@@ -68,4 +92,28 @@ const $welcomeFace: ImageStyle = {
 
 const $welcomeHeading: ThemedStyle<TextStyle> = ({ spacing }) => ({
   marginBottom: spacing.md,
+})
+
+const $textField: ThemedStyle<TextStyle> = ({ colors }) => ({
+  borderColor: colors.palette.neutral200,
+  borderWidth: 1,
+  borderRadius: 4,
+  padding: 8,
+})
+
+const $textFieldContainer: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  backgroundColor: colors.palette.neutral100,
+  width: 600,
+  height: 5,
+  display: "flex",
+  flexDirection: "column",
+})
+
+const $button: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  backgroundColor: colors.palette.neutral100,
+  width: 300,
+  height: 5,
+  marginLeft: "auto",
+  marginRight: "auto",
+  marginTop: 10,
 })

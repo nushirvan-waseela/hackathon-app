@@ -5,10 +5,9 @@ const en = {
     back: "Back",
   },
   welcomeScreen: {
-    postscript:
-      "psst  — This probably isn't what your app looks like. (Unless your designer handed you these screens, and in that case, ship it!)",
-    readyForLaunch: "Your app, almost ready for launch!",
-    exciting: "(ohh, this is exciting!)",
+    heading: "Welcome to the app!",
+    deviceIdField: "Device ID",
+    deviceIdPlaceholder: "Enter your device ID",
   },
   errorScreen: {
     title: "Something went wrong!",
