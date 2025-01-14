@@ -5,8 +5,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { AppStackScreenProps } from "@/navigators"
 import { Screen, Text } from "@/components"
 import { fetchCMSData } from "@/services/api/cms"
-// import { useNavigation } from "@react-navigation/native"
-// import { useStores } from "@/models"
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
 
@@ -21,7 +19,20 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
         if (storedData) {
           const parsedData = JSON.parse(storedData)
           console.log("Fetched from local storage:", parsedData)
-          setVideos(parsedData.sheet1)
+
+          // Fetch new data from the API
+          const data = await fetchCMSData()
+          console.log("Fetched from API:", data)
+
+          // Replace the stored data with the latest data from the API
+          const updatedData = {
+            sheet1: data.sheet1,
+          }
+
+          // Update the state with the latest data and save to storage
+          setVideos(updatedData.sheet1)
+          await AsyncStorage.setItem("CMSData", JSON.stringify(updatedData))
+          console.log("Data updated in storage:", updatedData)
         } else {
           // Fetch data from API if not found in storage
           const data = await fetchCMSData()
@@ -34,7 +45,14 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
       }
     }
 
+    // Call getData initially
     getData()
+
+    // Set an interval to call getData every 10 seconds
+    const intervalId = setInterval(getData, 3000)
+
+    // Cleanup the interval on component unmount
+    return () => clearInterval(intervalId)
   }, [])
 
   return (
