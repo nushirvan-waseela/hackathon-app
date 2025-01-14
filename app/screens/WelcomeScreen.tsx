@@ -1,27 +1,22 @@
 import { observer } from "mobx-react-lite"
 import { FC } from "react"
-import { Image, ImageStyle, TextStyle, View, ViewStyle } from "react-native"
+import { ImageStyle, Platform, ScrollView, TextStyle, ViewStyle } from "react-native"
 import { Text, Screen } from "@/components"
 import { isRTL } from "../i18n"
 import { AppStackScreenProps } from "../navigators"
 import { $styles, type ThemedStyle } from "@/theme"
-import { useSafeAreaInsetsStyle } from "../utils/useSafeAreaInsetsStyle"
 import { useAppTheme } from "@/utils/useAppTheme"
 
-const welcomeLogo = require("../../assets/images/logo.png")
-const welcomeFace = require("../../assets/images/welcome-face.png")
 
 interface WelcomeScreenProps extends AppStackScreenProps<"Welcome"> {}
 
 export const WelcomeScreen: FC<WelcomeScreenProps> = observer(function WelcomeScreen() {
-  const { themed, theme } = useAppTheme()
+  const { themed } = useAppTheme()
 
-  const $bottomContainerInsets = useSafeAreaInsetsStyle(["bottom"])
 
   return (
-    <Screen preset="fixed" contentContainerStyle={$styles.flex1}>
-      <View style={themed($topContainer)}>
-        <Image style={themed($welcomeLogo)} source={welcomeLogo} resizeMode="contain" />
+    <Screen contentContainerStyle={$styles.flex1}>
+      <ScrollView contentContainerStyle={themed($topContainer)}>
         <Text
           testID="welcome-heading"
           style={themed($welcomeHeading)}
@@ -29,17 +24,8 @@ export const WelcomeScreen: FC<WelcomeScreenProps> = observer(function WelcomeSc
           preset="heading"
         />
         <Text tx="welcomeScreen:exciting" preset="subheading" />
-        <Image
-          style={$welcomeFace}
-          source={welcomeFace}
-          resizeMode="contain"
-          tintColor={theme.isDark ? theme.colors.palette.neutral900 : undefined}
-        />
-      </View>
-
-      <View style={themed([$bottomContainer, $bottomContainerInsets])}>
-        <Text tx="welcomeScreen:postscript" size="md" />
-      </View>
+        
+      </ScrollView>
     </Screen>
   )
 })
@@ -47,34 +33,36 @@ export const WelcomeScreen: FC<WelcomeScreenProps> = observer(function WelcomeSc
 const $topContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
   flexShrink: 1,
   flexGrow: 1,
-  flexBasis: "57%",
+  flexBasis: "65%",
   justifyContent: "center",
-  paddingHorizontal: spacing.lg,
+  alignItems: "center",
+  paddingHorizontal: Platform.isTV ? spacing.xxl : spacing.lg * 2,
 })
 
 const $bottomContainer: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   flexShrink: 1,
   flexGrow: 0,
-  flexBasis: "43%",
+  flexBasis: "35%",
   backgroundColor: colors.palette.neutral100,
-  borderTopLeftRadius: 16,
-  borderTopRightRadius: 16,
-  paddingHorizontal: spacing.lg,
+  borderTopLeftRadius: Platform.isTV ? 48 : 24,
+  borderTopRightRadius: Platform.isTV ? 48 : 24,
+  paddingHorizontal: Platform.isTV ? spacing.xxl : spacing.lg * 2,
   justifyContent: "space-around",
+  width: "100%"
 })
 
 const $welcomeLogo: ThemedStyle<ImageStyle> = ({ spacing }) => ({
-  height: 88,
-  width: "100%",
-  marginBottom: spacing.xxl,
+  height: Platform.isTV ? 352 : 176,
+  width: Platform.isTV ? "60%" : "100%",
+  marginBottom: spacing.xxl * 1.5,
 })
 
 const $welcomeFace: ImageStyle = {
-  height: 169,
-  width: 269,
+  height: Platform.isTV ? 676 : 338,
+  width: Platform.isTV ? 1076 : 538,
   position: "absolute",
-  bottom: -47,
-  right: -80,
+  bottom: Platform.isTV ? -188 : -94,
+  right: Platform.isTV ? -320 : -160,
   transform: [{ scaleX: isRTL ? -1 : 1 }],
 }
 

@@ -31,6 +31,7 @@ import { customFontsToLoad } from "./theme"
 import Config from "./config"
 import { KeyboardProvider } from "react-native-keyboard-controller"
 import { loadDateFnsLocale } from "./utils/formatDate"
+import { Platform, Dimensions } from "react-native"
 
 export const NAVIGATION_PERSISTENCE_KEY = "NAVIGATION_STATE"
 
@@ -59,6 +60,12 @@ interface AppProps {
   hideSplashScreen: () => Promise<void>
 }
 
+// Add TV dimensions configuration
+const TV_DIMENSIONS = {
+  width: 1920,
+  height: 1080,
+}
+
 /**
  * This is the root component of our app.
  * @param {AppProps} props - The props for the `App` component.
@@ -79,6 +86,16 @@ function App(props: AppProps) {
     initI18n()
       .then(() => setIsI18nInitialized(true))
       .then(() => loadDateFnsLocale())
+  }, [])
+
+  useEffect(() => {
+    // Set default dimensions for Android TV
+    if (Platform.isTV) {
+      Dimensions.set({
+        screen: TV_DIMENSIONS,
+        window: TV_DIMENSIONS
+      })
+    }
   }, [])
 
   const { rehydrated } = useInitialRootStore(() => {
