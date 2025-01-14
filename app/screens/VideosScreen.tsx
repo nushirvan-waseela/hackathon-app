@@ -1,6 +1,6 @@
 import { FC, useEffect, useState, useRef } from "react"
 import { observer } from "mobx-react-lite"
-import { ViewStyle } from "react-native"
+import { ViewStyle, Dimensions } from "react-native"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { AppStackScreenProps } from "@/navigators"
 import { Screen, Text } from "@/components"
@@ -16,6 +16,10 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   const [videos, setVideos] = useState<any[]>([])
   const [currentIndex, setCurrentIndex] = useState<number>(0) // Index to track the currently playing video/image
   const videoPlayer = useRef(null) // Ref for the Video component
+  const [mediaSize, setMediaSize] = useState<{ width: number; height: number }>({
+    width: Dimensions.get("window").width,
+    height: 250,
+  }) // State to store media dimensions
   const id = loadString("deviceId")
 
   useEffect(() => {
@@ -104,27 +108,58 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   // Function to render the media (video or image)
   const renderMedia = (media: any) => {
     // const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.jpg`
+    console.log(
+      "__________________________________________________________________________________________",
+    )
+    console.log("===> vidoes: ", videos)
+    console.log(
+      "__________________________________________________________________________________________",
+    )
+    console.log("----> media: ", media)
     if (media.type === "video") {
-      const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.mp4`
+      const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.jpg`
       return (
         <Video
           source={{ uri: filePath }}
           ref={videoPlayer}
           onEnd={handleEnd}
-          resizeMode="cover"
-          style={{ width: "100%", height: 250 }}
+          onLoad={(data) => {
+            // Update media size based on original video dimensions
+            const { width, height } = data.naturalSize
+            if (width && height) {
+              setMediaSize({ width, height })
+            }
+          }}
+          resizeMode="contain"
+          style={{ width: mediaSize.width, height: mediaSize.height }}
         />
       )
     } else {
       const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.jpg`
-      return <Image source={{ uri: `file://${filePath}` }} style={{ width: "100%", height: 250 }} />
+
+      Image.getSize(
+        `file://${filePath}`,
+        (width, height) => {
+          // Update media size based on original image dimensions
+          setMediaSize({ width, height })
+        },
+        (error) => {
+          console.error("Failed to get image size:", error)
+        },
+      )
+      return (
+        <Image
+          source={{ uri: `file://${filePath}` }}
+          style={{ width: mediaSize.width, height: mediaSize.height }}
+        />
+      )
     }
   }
 
   return (
     <Screen style={$root} preset="scroll">
       <Text text="videos" />
-      {videos.length > 0 && renderMedia(videos[currentIndex])}
+      {videos.length > 0 && renderMedia(videos[0])}
     </Screen>
   )
 })
