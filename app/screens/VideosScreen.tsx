@@ -6,6 +6,7 @@ import { AppStackScreenProps } from "@/navigators"
 import { Screen, Text } from "@/components"
 import { fetchCMSData } from "@/services/api/cms"
 import { loadString } from "@/utils/storage"
+import RNFS from "react-native-fs" // File system library
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
 
@@ -31,6 +32,9 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
             sheet1: data.sheet1,
           }
 
+          // Download the files and log the updates
+          await downloadFiles(data.sheet1)
+
           // Update the state with the latest data and save to storage
           setVideos(updatedData.sheet1)
           await AsyncStorage.setItem("CMSData", JSON.stringify(updatedData))
@@ -39,6 +43,10 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
           // Fetch data from API if not found in storage
           const data = await fetchCMSData(id || "")
           console.log("Fetched from API:", data)
+
+          // Download the files and log the updates
+          await downloadFiles(data.sheet1)
+
           setVideos(data.sheet1)
           await AsyncStorage.setItem("CMSData", JSON.stringify(data))
         }
@@ -56,6 +64,32 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     // Cleanup the interval on component unmount
     return () => clearInterval(intervalId)
   }, [])
+
+  // Function to handle downloading files and logging the process
+  const downloadFiles = async (videos: any[]) => {
+    for (const video of videos) {
+      const filePath = `${RNFS.DocumentDirectoryPath}/${video.contentId}.jpg` // Example file path (you may want to adjust this based on file type)
+      const fileExists = await RNFS.exists(filePath)
+
+      if (!fileExists) {
+        console.log(`Download started for item URL: ${video.link}`)
+
+        // Start the download
+        try {
+          await RNFS.downloadFile({
+            fromUrl: video.link,
+            toFile: filePath,
+          }).promise
+
+          console.log(`Download completed for item: ${video.title}`)
+        } catch (error) {
+          console.error(`Download failed for item: ${video.title}`, error)
+        }
+      } else {
+        console.log(`File already exists for item: ${video.title}`)
+      }
+    }
+  }
 
   return (
     <Screen style={$root} preset="scroll">
