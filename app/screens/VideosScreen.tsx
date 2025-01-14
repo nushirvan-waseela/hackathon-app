@@ -1,4 +1,4 @@
-import { FC, useEffect, useState } from "react"
+import { FC, useEffect, useState, useRef } from "react"
 import { observer } from "mobx-react-lite"
 import { ViewStyle } from "react-native"
 import AsyncStorage from "@react-native-async-storage/async-storage"
@@ -7,12 +7,17 @@ import { Screen, Text } from "@/components"
 import { fetchCMSData } from "@/services/api/cms"
 import { loadString } from "@/utils/storage"
 import RNFS from "react-native-fs" // File system library
+import Video from "react-native-video" // Video playback component
+import { Image } from "react-native" // Image component for pictures
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
 
 export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScreen() {
   const [videos, setVideos] = useState<any[]>([])
+  const [currentIndex, setCurrentIndex] = useState<number>(0) // Index to track the currently playing video/image
+  const videoPlayer = useRef(null) // Ref for the Video component
   const id = loadString("deviceId")
+
   useEffect(() => {
     const getData = async () => {
       try {
@@ -58,7 +63,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     // Call getData initially
     getData()
 
-    // Set an interval to call getData every 10 seconds
+    // Set an interval to call getData every 3 seconds
     const intervalId = setInterval(getData, 3000)
 
     // Cleanup the interval on component unmount
@@ -91,12 +96,35 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     }
   }
 
+  // Function to handle moving to the next media in the loop
+  const handleEnd = () => {
+    setCurrentIndex((prevIndex) => (prevIndex + 1) % videos.length) // Loop back to the first item once we reach the last
+  }
+
+  // Function to render the media (video or image)
+  const renderMedia = (media: any) => {
+    // const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.jpg`
+    if (media.type === "video") {
+      const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.mp4`
+      return (
+        <Video
+          source={{ uri: filePath }}
+          ref={videoPlayer}
+          onEnd={handleEnd}
+          resizeMode="cover"
+          style={{ width: "100%", height: 250 }}
+        />
+      )
+    } else {
+      const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.jpg`
+      return <Image source={{ uri: `file://${filePath}` }} style={{ width: "100%", height: 250 }} />
+    }
+  }
+
   return (
     <Screen style={$root} preset="scroll">
       <Text text="videos" />
-      {videos.map((video) => (
-        <Text key={video.contentId} text={video.title} />
-      ))}
+      {videos.length > 0 && renderMedia(videos[currentIndex])}
     </Screen>
   )
 })

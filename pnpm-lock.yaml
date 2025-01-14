@@ -110,6 +110,9 @@ importers:
       react-native-screens:
         specifier: ~4.4.0
         version: 4.4.0(react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(@types/react@18.3.18)(react@18.3.1))(react@18.3.1)
+      react-native-video:
+        specifier: ^6.9.1
+        version: 6.9.1(react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(@types/react@18.3.18)(react@18.3.1))(react@18.3.1)
       react-native-web:
         specifier: ~0.19.6
         version: 0.19.13(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -4383,6 +4386,12 @@ packages:
 
   react-native-screens@4.4.0:
     resolution: {integrity: sha512-c7zc7Zwjty6/pGyuuvh9gK3YBYqHPOxrhXfG1lF4gHlojQSmIx2piNbNaV+Uykj+RDTmFXK0e/hA+fucw/Qozg==, tarball: https://registry.npmjs.org/react-native-screens/-/react-native-screens-4.4.0.tgz}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
+  react-native-video@6.9.1:
+    resolution: {integrity: sha512-JwQPp4+tp2a+hy59KEqKTxW7GtPZtd95sKeFedbz7ywIcRbjyaT2Zy97OuCSbbpI+1xmSMp74CH8R9ooG3VesQ==, tarball: https://registry.npmjs.org/react-native-video/-/react-native-video-6.9.1.tgz}
     peerDependencies:
       react: '*'
       react-native: '*'
@@ -10937,6 +10946,11 @@ snapshots:
       react-freeze: 1.0.4(react@18.3.1)
       react-native: 0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(@types/react@18.3.18)(react@18.3.1)
       warn-once: 0.1.1
+
+  react-native-video@6.9.1(react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(@types/react@18.3.18)(react@18.3.1))(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+      react-native: 0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(@types/react@18.3.18)(react@18.3.1)
 
   react-native-web@0.19.13(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
