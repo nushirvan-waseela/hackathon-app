@@ -5,15 +5,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { AppStackScreenProps } from "@/navigators"
 import { Screen, Text } from "@/components"
 import { fetchCMSData } from "@/services/api/cms"
+import { loadString } from "@/utils/storage"
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
 
 export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScreen() {
   const [videos, setVideos] = useState<any[]>([])
-
+  const id = loadString("deviceId")
   useEffect(() => {
     const getData = async () => {
       try {
+        console.log("id: ", id)
         // Check if data exists in local storage
         const storedData = await AsyncStorage.getItem("CMSData")
         if (storedData) {
@@ -21,7 +23,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
           console.log("Fetched from local storage:", parsedData)
 
           // Fetch new data from the API
-          const data = await fetchCMSData()
+          const data = await fetchCMSData(id || "")
           console.log("Fetched from API:", data)
 
           // Replace the stored data with the latest data from the API
@@ -35,7 +37,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
           console.log("Data updated in storage:", updatedData)
         } else {
           // Fetch data from API if not found in storage
-          const data = await fetchCMSData()
+          const data = await fetchCMSData(id || "")
           console.log("Fetched from API:", data)
           setVideos(data.sheet1)
           await AsyncStorage.setItem("CMSData", JSON.stringify(data))
