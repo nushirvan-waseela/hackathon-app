@@ -11,6 +11,7 @@ import Video from "react-native-video" // Video playback component
 import { Image } from "react-native" // Image component for pictures
 import { fetchSheetData } from "@/services/api/readSheet"
 import { logData, LogType } from "@/services/api/writeSheet"
+import Toast from 'react-native-toast-message'
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
 const getFileType = async (filePath: string) => {
@@ -52,11 +53,18 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   useEffect(() => {
     const getData = async () => {
       try {
-        console.log("id: ", id)
+        Toast.show({
+          type: 'info',
+          text1: 'Device ID',
+          text2: `Current device ID: ${id}`,
+        })
+
         const storedData = await AsyncStorage.getItem("CMSData")
         if (storedData) {
           const parsedData = JSON.parse(storedData)
+          console.log("===> parsedData: ", parsedData)
           const data = await fetchSheetData(id || "")
+          console.log("===> data: ", data)
           const updatedData = { sheet1: data.sheet1 }
           await downloadFiles(data.sheet1)
           setVideos(updatedData.sheet1)
@@ -67,8 +75,17 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
           setVideos(data.sheet1)
           await AsyncStorage.setItem("CMSData", JSON.stringify(data))
         }
+        Toast.show({
+          type: 'success',
+          text1: 'Data Fetched',
+          text2: 'Data fetched successfully',
+        })
       } catch (error) {
-        console.error("Failed to fetch data:", error)
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: 'Failed to fetch data',
+        })
       }
     }
 
@@ -114,6 +131,8 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
         return () => clearTimeout(timer) // Clear timeout on cleanup
       }
     }
+   
+    return ()=>{}
   }, [currentIndex, videos])
 
   const downloadFiles = async (videos: any[]) => {
@@ -127,12 +146,24 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
             fromUrl: video.link,
             toFile: filePath,
           }).promise
-          console.log(`Download completed for item: ${video.title}`)
+          Toast.show({
+            type: 'success',
+            text1: 'Download Complete',
+            text2: `Downloaded: ${video.title}`,
+          })
         } catch (error) {
-          console.error(`Download failed for item: ${video.title}`, error)
+          Toast.show({
+            type: 'error',
+            text1: 'Download Failed',
+            text2: `Failed to download: ${video.title}`,
+          })
         }
       } else {
-        console.log(`File already exists for item: ${video.title}`)
+        Toast.show({
+          type: 'info',
+          text1: 'File Exists',
+          text2: `Already downloaded: ${video.title}`,
+        })
       }
     }
   }
@@ -179,10 +210,13 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   }
 
   return (
-    <Screen style={$root} preset="scroll">
-      <Text text="videos" />
-      {videos.length > 0 && renderMedia(videos[currentIndex])}
-    </Screen>
+    <>
+      <Screen style={$root} preset="scroll">
+        <Text text="videos" />
+        {videos.length > 0 && renderMedia(videos[currentIndex])}
+      </Screen>
+      <Toast />
+    </>
   )
 })
 
