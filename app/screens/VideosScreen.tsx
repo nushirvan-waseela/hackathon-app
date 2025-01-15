@@ -112,9 +112,65 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
         // Show image for 3 seconds, then move to next media
         const timer = setTimeout(handleEnd, 3000)
         return () => clearTimeout(timer) // Clear timeout on cleanup
+      } else {
+        // const now = new Date()
+        // const optionsTime = {
+        //   timeZone: "Asia/Karachi",
+        //   hour: "2-digit" as const,
+        //   minute: "2-digit" as const,
+        //   second: "2-digit" as const,
+        //   hour12: true,
+        // }
+        // const optionsDate = {
+        //   timeZone: "Asia/Karachi",
+        //   year: "numeric" as const,
+        //   month: "2-digit" as const,
+        //   day: "2-digit" as const,
+        // }
+        // const timestampEnd = new Date(now)
+        // timestampEnd.setSeconds(timestampEnd.getSeconds() + 3)
+        // setLog({
+        //   tv_id: id || "",
+        //   content_id: videos[currentIndex].contentId,
+        //   timestamp_start: new Intl.DateTimeFormat("en-GB", optionsTime).format(now),
+        //   timestamp_end: new Intl.DateTimeFormat("en-GB", optionsTime).format(timestampEnd),
+        //   date: new Intl.DateTimeFormat("en-GB", optionsDate).format(now),
+        // })
+        // logData(log)
       }
     }
   }, [currentIndex, videos])
+
+  const handleVideoLoad = (data: { duration: number }) => {
+    const durationSeconds = Math.round(data.duration)
+    const now = new Date()
+    const endTimestamp = new Date(now)
+    endTimestamp.setSeconds(now.getSeconds() + durationSeconds)
+
+    const optionsTime = {
+      timeZone: "Asia/Karachi",
+      hour: "2-digit" as const,
+      minute: "2-digit" as const,
+      second: "2-digit" as const,
+      hour12: true,
+    }
+    const optionsDate = {
+      timeZone: "Asia/Karachi",
+      year: "numeric" as const,
+      month: "2-digit" as const,
+      day: "2-digit" as const,
+    }
+    const timestampEnd = new Date(now)
+    timestampEnd.setSeconds(timestampEnd.getSeconds() + 3)
+    setLog({
+      tv_id: id || "",
+      content_id: videos[currentIndex].contentId,
+      timestamp_start: new Intl.DateTimeFormat("en-GB", optionsTime).format(now),
+      timestamp_end: endTimestamp.toLocaleTimeString("en-GB", { timeZone: "Asia/Karachi" }),
+      date: new Intl.DateTimeFormat("en-GB", optionsDate).format(now),
+    })
+    logData(log)
+  }
 
   const downloadFiles = async (videos: any[]) => {
     for (const video of videos) {
@@ -154,6 +210,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
             if (width && height) {
               setMediaSize({ width, height })
             }
+            handleVideoLoad(data)
           }}
           resizeMode="contain"
           style={{ width: mediaSize.width, height: mediaSize.height }}
