@@ -9,6 +9,7 @@ import { loadString } from "@/utils/storage"
 import RNFS from "react-native-fs" // File system library
 import Video from "react-native-video" // Video playback component
 import { Image } from "react-native" // Image component for pictures
+import { fetchSheetData } from "@/services/api/readSheet"
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
 const getFileType = async (filePath: string) => {
@@ -47,13 +48,13 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
         const storedData = await AsyncStorage.getItem("CMSData")
         if (storedData) {
           const parsedData = JSON.parse(storedData)
-          const data = await fetchCMSData(id || "")
+          const data = await fetchSheetData(id || "")
           const updatedData = { sheet1: data.sheet1 }
           await downloadFiles(data.sheet1)
           setVideos(updatedData.sheet1)
           await AsyncStorage.setItem("CMSData", JSON.stringify(updatedData))
         } else {
-          const data = await fetchCMSData(id || "")
+          const data = await fetchSheetData(id || "")
           await downloadFiles(data.sheet1)
           setVideos(data.sheet1)
           await AsyncStorage.setItem("CMSData", JSON.stringify(data))
