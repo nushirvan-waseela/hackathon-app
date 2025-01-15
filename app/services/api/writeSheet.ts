@@ -4,11 +4,12 @@ export type LogType = {
   content_id: string
   timestamp_start: string
   timestamp_end: string
+  date: string
 }
 export const logData = async (log: LogType) => {
   try {
     const response = await axios.post(
-      "https://script.google.com/macros/s/AKfycbw5LRbvfK9euwM0fHelXCBfUMshCHjylRilRVB_B3rTg78BtNmz_-81vYbp-Krj2WoXlQ/exec",
+      "https://script.google.com/macros/s/AKfycbyK63P-WVIqKM1bWNEmkDyPHqdpAiQ1GP4YCNpQZAwwUH-Nt6WFO-IjZxWHP-njxI3Rqw/exec",
       log,
     )
 

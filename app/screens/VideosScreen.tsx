@@ -10,6 +10,7 @@ import RNFS from "react-native-fs" // File system library
 import Video from "react-native-video" // Video playback component
 import { Image } from "react-native" // Image component for pictures
 import { fetchSheetData } from "@/services/api/readSheet"
+import { logData, LogType } from "@/services/api/writeSheet"
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
 const getFileType = async (filePath: string) => {
@@ -39,6 +40,13 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     width: Dimensions.get("window").width,
     height: 250,
   }) // State to store media dimensions
+  const [log, setLog] = useState<LogType>({
+    tv_id: "",
+    content_id: "",
+    timestamp_start: "",
+    timestamp_end: "",
+    date: "",
+  })
   const id = loadString("deviceId")
 
   useEffect(() => {
@@ -69,8 +77,38 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
 
   useEffect(() => {
     if (videos.length > 0) {
+      console.log("===> vidoe: ", videos[currentIndex])
       const currentMedia = videos[currentIndex]
       if (currentMedia.type === "image") {
+        const now = new Date()
+        const optionsTime = {
+          timeZone: "Asia/Karachi",
+          hour: "2-digit" as const,
+          minute: "2-digit" as const,
+          second: "2-digit" as const,
+          hour12: true,
+        }
+
+        const optionsDate = {
+          timeZone: "Asia/Karachi",
+          year: "numeric" as const,
+          month: "2-digit" as const,
+          day: "2-digit" as const,
+        }
+        const timestampEnd = new Date(now)
+        timestampEnd.setSeconds(timestampEnd.getSeconds() + 3)
+
+        setLog({
+          tv_id: id || "",
+          content_id: videos[currentIndex].contentId,
+          timestamp_start: new Intl.DateTimeFormat("en-GB", optionsTime).format(now),
+          timestamp_end: new Intl.DateTimeFormat("en-GB", optionsTime).format(timestampEnd),
+          date: new Intl.DateTimeFormat("en-GB", optionsDate).format(now),
+        })
+        setTimeout(() => {
+          logData(log)
+        }, 3000)
+
         // Show image for 3 seconds, then move to next media
         const timer = setTimeout(handleEnd, 3000)
         return () => clearTimeout(timer) // Clear timeout on cleanup
