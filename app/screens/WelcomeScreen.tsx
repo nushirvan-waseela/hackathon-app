@@ -1,7 +1,15 @@
 import { observer } from "mobx-react-lite"
-import { FC, useEffect, useState } from "react"
-import { ImageStyle, Platform, ScrollView, TextStyle, View, ViewStyle } from "react-native"
-import { Text, Screen, TextField, Button } from "@/components"
+import { FC, useEffect, useRef, useState } from "react"
+import {
+  ImageStyle,
+  Platform,
+  ScrollView,
+  TextStyle,
+  View,
+  ViewStyle,
+  TextInput,
+} from "react-native"
+import { Text, Screen, TextField } from "@/components"
 import { isRTL } from "../i18n"
 import { AppStackScreenProps } from "../navigators"
 import { $styles, type ThemedStyle } from "@/theme"
@@ -10,7 +18,6 @@ import { t } from "i18next"
 import { loadString, saveString } from "@/utils/storage"
 import { useNavigation } from "@react-navigation/native"
 
-
 interface WelcomeScreenProps extends AppStackScreenProps<"Welcome"> {}
 
 export const WelcomeScreen: FC<WelcomeScreenProps> = observer(function WelcomeScreen() {
@@ -18,21 +25,24 @@ export const WelcomeScreen: FC<WelcomeScreenProps> = observer(function WelcomeSc
   const navigation = useNavigation()
 
   const id = loadString("deviceId")
-
-
   const [deviceId, setDeviceId] = useState<string>(id || "")
 
-  const onSubmit = () => {
-    saveString("deviceId", deviceId)
-    navigation.navigate("Videos" as never)
+  const textFieldRef = useRef<TextInput>(null) // Create a ref for the TextField
+
+  const handleSubmit = () => {
+    if (deviceId.trim()) {
+      saveString("deviceId", deviceId)
+      navigation.navigate("Videos" as never)
+    }
   }
 
   useEffect(() => {
     if (id) {
-    navigation.navigate("Videos" as never)
+      // navigation.navigate("Videos" as never)
+    } else {
+      textFieldRef.current?.focus() // Focus the TextField when the screen is displayed
     }
   }, [id])
-
 
   return (
     <Screen contentContainerStyle={$styles.flex1}>
@@ -45,8 +55,16 @@ export const WelcomeScreen: FC<WelcomeScreenProps> = observer(function WelcomeSc
         />
         <Text tx="welcomeScreen:deviceIdField" preset="subheading" />
         <View style={themed($textFieldContainer)}>
-          <TextField value={deviceId} onChangeText={setDeviceId} style={themed($textField)} placeholder={t("welcomeScreen:deviceIdPlaceholder")} />
-        <Button style={themed($button)} onPress={onSubmit} text="Submit" />
+          <TextField
+            ref={textFieldRef} // Attach the ref to the TextField
+            value={deviceId}
+            onChangeText={setDeviceId}
+            onSubmitEditing={handleSubmit} // Submit on Enter key press
+            style={themed($textField)}
+            placeholder={t("welcomeScreen:deviceIdPlaceholder")}
+            autoFocus // Ensure the TextField can autofocus
+            returnKeyType="done" // Specify the return key type for clarity
+          />
         </View>
       </ScrollView>
     </Screen>
@@ -72,7 +90,7 @@ const $bottomContainer: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
   borderTopRightRadius: Platform.isTV ? 48 : 24,
   paddingHorizontal: Platform.isTV ? spacing.xxl : spacing.lg * 2,
   justifyContent: "space-around",
-  width: "100%"
+  width: "100%",
 })
 
 const $welcomeLogo: ThemedStyle<ImageStyle> = ({ spacing }) => ({
@@ -104,16 +122,6 @@ const $textField: ThemedStyle<TextStyle> = ({ colors }) => ({
 const $textFieldContainer: ThemedStyle<ViewStyle> = ({ colors }) => ({
   backgroundColor: colors.palette.neutral100,
   width: 600,
-  height: 5,
   display: "flex",
   flexDirection: "column",
-})
-
-const $button: ThemedStyle<ViewStyle> = ({ colors }) => ({
-  backgroundColor: colors.palette.neutral100,
-  width: 300,
-  height: 5,
-  marginLeft: "auto",
-  marginRight: "auto",
-  marginTop: 10,
 })
