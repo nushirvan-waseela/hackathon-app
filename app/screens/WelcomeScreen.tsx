@@ -64,6 +64,7 @@ export const WelcomeScreen: FC<WelcomeScreenProps> = observer(function WelcomeSc
             placeholder={t("welcomeScreen:deviceIdPlaceholder")}
             autoFocus // Ensure the TextField can autofocus
             returnKeyType="done" // Specify the return key type for clarity
+            isTVSelectable={Platform.isTV}
           />
         </View>
       </ScrollView>

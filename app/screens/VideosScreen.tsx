@@ -48,7 +48,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     timestamp_end: "",
     date: "",
   })
-  const id = loadString("deviceId")
+  const id = "123"
 
   // This useEffect runs once when the component mounts and handles:
   // 1. Fetching data from the Google Sheet using the device ID
