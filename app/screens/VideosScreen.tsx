@@ -11,7 +11,7 @@ import Video from "react-native-video" // Video playback component
 import { Image } from "react-native" // Image component for pictures
 import { fetchSheetData } from "@/services/api/readSheet"
 import { logData, LogType } from "@/services/api/writeSheet"
-import Toast from 'react-native-toast-message'
+import Toast from "react-native-toast-message"
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
 const getFileType = async (filePath: string) => {
@@ -58,6 +58,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   useEffect(() => {
     const getData = async () => {
       try {
+        console.log("=========> FETCHING DATA")
         // Display current device ID
         // Toast.show({
         //   type: 'info',
@@ -68,32 +69,36 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
         // Fetch fresh data from Google Sheet
         const data = await fetchSheetData(id || "")
         Toast.show({
-          type: 'info',
-          text1: 'Downloading Media',
-          text2: 'Downloading media files',
+          type: "info",
+          text1: "Downloading Media",
+          text2: "Downloading media files",
         })
         // Download any new media files
         await downloadFiles(data.sheet1)
-        
+
         // Update state and cache
         setVideos(data.sheet1)
         await AsyncStorage.setItem("CMSData", JSON.stringify(data))
-        
+
         Toast.show({
-          type: 'success',
-          text1: 'Data Fetched',
-          text2: 'Data fetched successfully',
+          type: "success",
+          text1: "Data Fetched",
+          text2: "Data fetched successfully",
         })
       } catch (error) {
         Toast.show({
-          type: 'error',
-          text1: 'Error',
-          text2: 'Failed to fetch data',
+          type: "error",
+          text1: "Error",
+          text2: "Failed to fetch data",
         })
       }
     }
 
     getData()
+    const intervalId = setInterval(getData, 10000)
+
+    // Cleanup the interval on component unmount
+    return () => clearInterval(intervalId)
   }, [id]) // Added id to dependency array since it's used inside
 
   // Handles image display timing and logging
@@ -102,11 +107,11 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   useEffect(() => {
     if (videos.length > 0) {
       const currentMedia = videos[currentIndex]
-      
+
       // Only process if current media is an image
       if (currentMedia.type === "image") {
         const now = new Date()
-        
+
         // Configure time format for Pakistan timezone
         const optionsTime = {
           timeZone: "Asia/Karachi",
@@ -123,7 +128,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
           month: "2-digit" as const,
           day: "2-digit" as const,
         }
-        
+
         // Calculate end time (3 seconds from now)
         const timestampEnd = new Date(now)
         timestampEnd.setSeconds(timestampEnd.getSeconds() + 3)
@@ -147,7 +152,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
         return () => clearTimeout(timer) // Cleanup timer on unmount or re-render
       }
     }
-   
+
     return () => {}
   }, [currentIndex, videos])
 
@@ -163,21 +168,21 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
             toFile: filePath,
           }).promise
           Toast.show({
-            type: 'success',
-            text1: 'Download Complete',
+            type: "success",
+            text1: "Download Complete",
             text2: `Downloaded: ${video.title}`,
           })
         } catch (error) {
           Toast.show({
-            type: 'error',
-            text1: 'Download Failed',
+            type: "error",
+            text1: "Download Failed",
             text2: `Failed to download: ${video.title}`,
           })
         }
       } else {
         Toast.show({
-          type: 'info',
-          text1: 'File Exists',
+          type: "info",
+          text1: "File Exists",
           text2: `Already downloaded: ${video.title}`,
         })
       }
