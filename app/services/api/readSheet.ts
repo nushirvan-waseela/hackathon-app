@@ -1,9 +1,9 @@
 import axios from "axios"
 
 const SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/1msuryPC68YWX3YTKbfb3ASFxmt8w72eywM3HRsbT4uY/gviz/tq?tqx=out:json"
+  "https://docs.google.com/spreadsheets/d/1SYtdfMpcWkzci4UFdMBporvJ7Y6je_XXGmvJwduobb8/gviz/tq?tqx=out:json"
 
-export const fetchSheetData = async (tvID: string) => {
+export const fetchSheetData = async (_tvID: string) => {
   try {
     // Fetch data from the Google Sheet
     console.log("===> SHEET_URL: ", SHEET_URL)
@@ -21,22 +21,21 @@ export const fetchSheetData = async (tvID: string) => {
 
     // Log the extracted data
     console.log("Fetched Sheet Data:", sheetData)
-    console.log("====> tvuid: ", tvID)
+    console.log("====> tvuid: ", _tvID)
     // Reformat the data
+    // TODO : data needs to be refined
     const formattedData = {
       sheet1: sheetData
         .map((row: any) => ({
-          contentId: row[1],
-          id: row[0],
-          link: row[3],
-          title: row[2],
-          tvId: row[0],
-          type: row[4],
+          time: row[0],
+          email: row[1],
+          tvScreen: row[2],
+          title: row[3],
+          url: row[4],
+          type: row[5],
         }))
-        .filter((item: any) => item.tvId === Number(tvID)), // Filter based on tvId
+        .filter((item: any) => item.tvScreen.toLowerCase() === _tvID.toLowerCase()), // Filter based on tvId
     }
-
-    console.log("===> formated data: ", formattedData)
 
     return formattedData
   } catch (error) {

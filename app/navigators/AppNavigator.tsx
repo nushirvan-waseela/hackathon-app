@@ -29,8 +29,9 @@ import { ComponentProps } from "react"
 export type AppStackParamList = {
   Welcome: undefined
   // 🔥 Your screens go here
+  SplashScreen: undefined
   Videos: undefined
-	// IGNITE_GENERATOR_ANCHOR_APP_STACK_PARAM_LIST
+  // IGNITE_GENERATOR_ANCHOR_APP_STACK_PARAM_LIST
 }
 
 /**
@@ -62,10 +63,11 @@ const AppStack = observer(function AppStack() {
         },
       }}
     >
-      {/* <Stack.Screen name="Welcome" component={Screens.WelcomeScreen} /> */}
+      <Stack.Screen name="SplashScreen" component={Screens.SplashScreen} />
+      <Stack.Screen name="Welcome" component={Screens.WelcomeScreen} />
       {/** 🔥 Your screens go here */}
       <Stack.Screen name="Videos" component={Screens.VideosScreen} />
-			{/* IGNITE_GENERATOR_ANCHOR_APP_STACK_SCREENS */}
+      {/* IGNITE_GENERATOR_ANCHOR_APP_STACK_SCREENS */}
     </Stack.Navigator>
   )
 })

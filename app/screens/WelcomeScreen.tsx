@@ -1,128 +1,138 @@
 import { observer } from "mobx-react-lite"
 import { FC, useEffect, useRef, useState } from "react"
 import {
-  ImageStyle,
-  Platform,
-  ScrollView,
   TextStyle,
   View,
   ViewStyle,
   TextInput,
+  Pressable,
+  Animated,
+  Platform,
+  Image,
+  ImageStyle,
 } from "react-native"
-import { Text, Screen, TextField } from "@/components"
-import { isRTL } from "../i18n"
+import { Text, Screen } from "@/components"
 import { AppStackScreenProps } from "../navigators"
-import { $styles, type ThemedStyle } from "@/theme"
-import { useAppTheme } from "@/utils/useAppTheme"
-import { t } from "i18next"
 import { loadString, saveString } from "@/utils/storage"
 import { useNavigation } from "@react-navigation/native"
+import logo from "../../assets/images/logo.png"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 interface WelcomeScreenProps extends AppStackScreenProps<"Welcome"> {}
 
 export const WelcomeScreen: FC<WelcomeScreenProps> = observer(function WelcomeScreen() {
-  const { themed } = useAppTheme()
   const navigation = useNavigation()
+  const insets = useSafeAreaInsets()
 
-  const id = loadString("deviceId")
-  const [deviceId, setDeviceId] = useState<string>(id || "")
-
-  const textFieldRef = useRef<TextInput>(null) // Create a ref for the TextField
+  const [deviceId, setDeviceId] = useState<string>(loadString("deviceId") || "")
+  const [isFocused, setIsFocused] = useState(false)
+  const textInputRef = useRef<TextInput>(null)
+  const scaleAnim = useRef(new Animated.Value(1)).current
 
   const handleSubmit = () => {
     if (deviceId.trim()) {
-      saveString("deviceId", deviceId)
-      navigation.navigate("Videos" as never)
+      // TODO: Add validation for device id and show error if not valid
+
+      // TODO: Add api call to check if device id is valid
+
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        saveString("deviceId", deviceId)
+        navigation.navigate("Videos" as never)
+      })
     }
   }
 
   useEffect(() => {
-    if (id) {
-      // navigation.navigate("Videos" as never)
-    } else {
-      textFieldRef.current?.focus() // Focus the TextField when the screen is displayed
+    if (!loadString("deviceId")) {
+      textInputRef.current?.focus()
     }
-  }, [id])
+  }, [])
 
   return (
-    <Screen contentContainerStyle={$styles.flex1}>
-      <ScrollView contentContainerStyle={themed($topContainer)}>
-        <Text
-          testID="welcome-heading"
-          style={themed($welcomeHeading)}
-          tx="welcomeScreen:heading"
-          preset="heading"
+    <View style={styles.container}>
+      <Image source={logo} style={styles.logo} />
+      <Text style={styles.welcomeText}>Welcome to Dukaan TV</Text>
+      <Text style={styles.instructionText}>Please enter your device ID to continue</Text>
+      <View style={styles.inputContainer}>
+        <TextInput
+          ref={textInputRef}
+          style={styles.input}
+          placeholder="Enter Device ID"
+          placeholderTextColor="#A0A0A0"
+          value={deviceId}
+          onChangeText={setDeviceId}
         />
-        <Text tx="welcomeScreen:deviceIdField" preset="subheading" />
-        <View style={themed($textFieldContainer)}>
-          <TextField
-            ref={textFieldRef} // Attach the ref to the TextField
-            value={deviceId}
-            onChangeText={setDeviceId}
-            onSubmitEditing={handleSubmit} // Submit on Enter key press
-            style={themed($textField)}
-            placeholder={t("welcomeScreen:deviceIdPlaceholder")}
-            autoFocus // Ensure the TextField can autofocus
-            returnKeyType="done" // Specify the return key type for clarity
-            isTVSelectable={Platform.isTV}
-          />
-        </View>
-      </ScrollView>
-    </Screen>
+        <Pressable onPress={handleSubmit} style={styles.button}>
+          <Animated.Text style={[styles.buttonText, { transform: [{ scale: scaleAnim }] }]}>
+            Enter
+          </Animated.Text>
+        </Pressable>
+      </View>
+    </View>
   )
 })
 
-const $topContainer: ThemedStyle<ViewStyle> = ({ spacing }) => ({
-  flexShrink: 1,
-  flexGrow: 1,
-  flexBasis: "65%",
-  justifyContent: "flex-start",
-  alignItems: "center",
-  paddingTop: 100,
-  paddingHorizontal: Platform.isTV ? spacing.xxl : spacing.lg * 2,
-})
-
-const $bottomContainer: ThemedStyle<ViewStyle> = ({ colors, spacing }) => ({
-  flexShrink: 1,
-  flexGrow: 0,
-  flexBasis: "35%",
-  backgroundColor: colors.palette.neutral100,
-  borderTopLeftRadius: Platform.isTV ? 48 : 24,
-  borderTopRightRadius: Platform.isTV ? 48 : 24,
-  paddingHorizontal: Platform.isTV ? spacing.xxl : spacing.lg * 2,
-  justifyContent: "space-around",
-  width: "100%",
-})
-
-const $welcomeLogo: ThemedStyle<ImageStyle> = ({ spacing }) => ({
-  height: Platform.isTV ? 352 : 176,
-  width: Platform.isTV ? "60%" : "100%",
-  marginBottom: spacing.xxl * 1.5,
-})
-
-const $welcomeFace: ImageStyle = {
-  height: Platform.isTV ? 676 : 338,
-  width: Platform.isTV ? 1076 : 538,
-  position: "absolute",
-  bottom: Platform.isTV ? -188 : -94,
-  right: Platform.isTV ? -320 : -160,
-  transform: [{ scaleX: isRTL ? -1 : 1 }],
+const styles = {
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#e79167",
+    width: "100%",
+    height: "100%",
+  } as ViewStyle,
+  logo: {
+    width: 200,
+    height: 100,
+    resizeMode: "contain",
+    marginBottom: 20,
+  } as ImageStyle,
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 10,
+    color: "#000",
+  } as TextStyle,
+  instructionText: {
+    fontSize: 16,
+    color: "#000",
+    marginBottom: 20,
+  } as TextStyle,
+  inputContainer: {
+    flexDirection: "column",
+    alignItems: "center",
+    width: "80%",
+  } as ViewStyle,
+  input: {
+    width: "100%",
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 5,
+    marginBottom: 10,
+    textAlign: "center",
+    color: "#000",
+  } as TextStyle,
+  button: {
+    backgroundColor: "#ff6600",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+  } as ViewStyle,
+  buttonText: {
+    fontSize: 18,
+    color: "#fff",
+    fontWeight: "bold",
+  } as TextStyle,
 }
-
-const $welcomeHeading: ThemedStyle<TextStyle> = ({ spacing }) => ({
-  marginBottom: spacing.md,
-})
-
-const $textField: ThemedStyle<TextStyle> = ({ colors }) => ({
-  borderColor: colors.palette.neutral200,
-  borderWidth: 1,
-  borderRadius: 4,
-  padding: 8,
-})
-
-const $textFieldContainer: ThemedStyle<ViewStyle> = ({ colors }) => ({
-  backgroundColor: colors.palette.neutral100,
-  width: 600,
-  display: "flex",
-  flexDirection: "column",
-})

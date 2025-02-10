@@ -1,246 +1,265 @@
-import { FC, useEffect, useState, useRef } from "react"
+import { FC, useEffect, useState, useRef, useCallback } from "react"
 import { observer } from "mobx-react-lite"
-import { ViewStyle, Dimensions } from "react-native"
+import { ViewStyle, Dimensions, ActivityIndicator, View } from "react-native"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { AppStackScreenProps } from "@/navigators"
 import { Screen, Text } from "@/components"
-import { fetchCMSData } from "@/services/api/cms"
-import { loadString } from "@/utils/storage"
-import RNFS from "react-native-fs" // File system library
-import Video from "react-native-video" // Video playback component
-import { Image } from "react-native" // Image component for pictures
-import { fetchSheetData } from "@/services/api/readSheet"
+import { DocumentDirectoryPath } from "react-native-fs"
+import Video from "react-native-video"
 import { logData, LogType } from "@/services/api/writeSheet"
 import Toast from "react-native-toast-message"
+import { fetchSheetData } from "@/services/api/readSheet"
+import { fetchDriveData } from "@/services/api/readDrive"
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
-const getFileType = async (filePath: string) => {
-  const fileData = await RNFS.readFile(filePath, "base64")
-  const buffer = Buffer.from(fileData, "base64")
-  const header = buffer.slice(0, 4).toString("hex")
 
-  switch (header) {
-    case "ffd8ffe0": // JPEG
-    case "ffd8ffe1":
-    case "ffd8ffe2":
-      return "jpg"
-    case "89504e47": // PNG
-      return "png"
-    case "52494646": // WebP
-      return "webp"
-    default:
-      return "unknown"
-  }
+// Updated interface to match the actual data structure
+interface MediaItem {
+  time: string
+  email: string
+  tvScreen: string
+  title: string
+  url: string
+  type: "video" | "image"
 }
 
+// Constants
+const STORAGE_KEY = "CMSData"
+const REFRESH_INTERVAL = 100000
+const TIMEZONE = "Asia/Karachi"
+
 export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScreen() {
-  const [videos, setVideos] = useState<any[]>([])
-  const [currentIndex, setCurrentIndex] = useState<number>(0) // Index to track the currently playing video/image
-  const videoPlayer = useRef(null) // Ref for the Video component
-  const [mediaSize, setMediaSize] = useState<{ width: number; height: number }>({
+  // State management
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({})
+  const [mediaSize, setMediaSize] = useState(() => ({
     width: Dimensions.get("window").width,
-    height: 250,
-  }) // State to store media dimensions
-  const [log, setLog] = useState<LogType>({
-    tv_id: "",
-    content_id: "",
-    timestamp_start: "",
-    timestamp_end: "",
-    date: "",
-  })
-  const id = "123"
+    height: Dimensions.get("window").height * 0.9,
+  }))
 
-  // This useEffect runs once when the component mounts and handles:
-  // 1. Fetching data from the Google Sheet using the device ID
-  // 2. Downloading any media files needed
-  // 3. Storing the fetched data in AsyncStorage for offline access
-  // 4. Updating the UI with the fetched data
+  // Refs
+  const videoPlayer = useRef<any>(null)
+  const unmountedRef = useRef(false)
+
+  // Fetch and cache media data
+  const fetchAndCacheData = useCallback(async () => {
+    if (unmountedRef.current) return
+
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      // Try to get cached data first
+      const cachedData = await AsyncStorage.getItem(STORAGE_KEY)
+      if (cachedData) {
+        const parsed = JSON.parse(cachedData)
+        setMediaItems(parsed)
+      }
+
+      // Fetch fresh data from your API
+      const data = await fetchSheetData("123") // Consider making ID configurable
+      const validatedData = validateMediaData(data.sheet1)
+
+      // Download media files
+      await downloadFiles(validatedData)
+
+      // Update state and cache
+      if (!unmountedRef.current) {
+        setMediaItems(validatedData)
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(validatedData))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred")
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Failed to fetch or process media data",
+      })
+    } finally {
+      if (!unmountedRef.current) {
+        setIsLoading(false)
+      }
+    }
+  }, [])
+
+  // Initialize and cleanup
   useEffect(() => {
-    const getData = async () => {
-      try {
-        console.log("=========> FETCHING DATA")
-        // Display current device ID
-        // Toast.show({
-        //   type: 'info',
-        //   text1: 'Device ID',
-        //   text2: `Current device ID: ${id}`,
-        // })
+    fetchAndCacheData()
+    const interval = setInterval(fetchAndCacheData, REFRESH_INTERVAL)
 
-        // Fetch fresh data from Google Sheet
-        const data = await fetchSheetData(id || "")
-        Toast.show({
-          type: "info",
-          text1: "Downloading Media",
-          text2: "Downloading media files",
-        })
-        // Download any new media files
-        await downloadFiles(data.sheet1)
+    return () => {
+      unmountedRef.current = true
+      clearInterval(interval)
+    }
+  }, [fetchAndCacheData])
 
-        // Update state and cache
-        setVideos(data.sheet1)
-        await AsyncStorage.setItem("CMSData", JSON.stringify(data))
+  // Media playback logging
+  const logMediaView = useCallback(async (media: MediaItem, duration: number) => {
+    const now = new Date()
+    const endTime = new Date(now.getTime() + duration)
 
-        Toast.show({
-          type: "success",
-          text1: "Data Fetched",
-          text2: "Data fetched successfully",
-        })
-      } catch (error) {
-        Toast.show({
-          type: "error",
-          text1: "Error",
-          text2: "Failed to fetch data",
-        })
-      }
+    const formatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: TIMEZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    })
+
+    const dateFormatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: TIMEZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+
+    const logEntry: LogType = {
+      tv_id: media.tvScreen.toString(),
+      content_id: media.title.toString(),
+      timestamp_start: formatter.format(now),
+      timestamp_end: formatter.format(endTime),
+      date: dateFormatter.format(now),
     }
 
-    getData()
-    const intervalId = setInterval(getData, 10000)
-
-    // Cleanup the interval on component unmount
-    return () => clearInterval(intervalId)
-  }, [id]) // Added id to dependency array since it's used inside
-
-  // Handles image display timing and logging
-  // - For images: shows for 3 seconds, logs viewing data, then advances
-  // - For videos: no action (handled by Video component events)
-  useEffect(() => {
-    if (videos.length > 0) {
-      const currentMedia = videos[currentIndex]
-
-      // Only process if current media is an image
-      if (currentMedia.type === "image") {
-        const now = new Date()
-
-        // Configure time format for Pakistan timezone
-        const optionsTime = {
-          timeZone: "Asia/Karachi",
-          hour: "2-digit" as const,
-          minute: "2-digit" as const,
-          second: "2-digit" as const,
-          hour12: true,
-        }
-
-        // Configure date format for Pakistan timezone
-        const optionsDate = {
-          timeZone: "Asia/Karachi",
-          year: "numeric" as const,
-          month: "2-digit" as const,
-          day: "2-digit" as const,
-        }
-
-        // Calculate end time (3 seconds from now)
-        const timestampEnd = new Date(now)
-        timestampEnd.setSeconds(timestampEnd.getSeconds() + 3)
-
-        // Prepare viewing log data
-        setLog({
-          tv_id: id || "",
-          content_id: videos[currentIndex].contentId,
-          timestamp_start: new Intl.DateTimeFormat("en-GB", optionsTime).format(now),
-          timestamp_end: new Intl.DateTimeFormat("en-GB", optionsTime).format(timestampEnd),
-          date: new Intl.DateTimeFormat("en-GB", optionsDate).format(now),
-        })
-
-        // Send log data after 3 seconds
-        setTimeout(() => {
-          logData(log)
-        }, 3000)
-
-        // Advance to next media after 3 seconds
-        const timer = setTimeout(handleEnd, 3000)
-        return () => clearTimeout(timer) // Cleanup timer on unmount or re-render
-      }
+    try {
+      await logData(logEntry)
+    } catch (err) {
+      console.error("Failed to log media view:", err)
     }
+  }, [])
 
-    return () => {}
-  }, [currentIndex, videos])
+  // Helper functions
+  const validateMediaData = (data: any[]): MediaItem[] => {
+    return data.filter((item) => {
+      const isValid =
+        typeof item.url === "string" &&
+        typeof item.title === "string" &&
+        typeof item.tvScreen === "string" &&
+        (item.type.toLowerCase() === "video" || item.type.toLowerCase() === "image") &&
+        (item.url.includes("drive.google.com") || item.url.includes("docs.google.com"))
 
-  const downloadFiles = async (videos: any[]) => {
-    for (const video of videos) {
-      const filePath = `${RNFS.DocumentDirectoryPath}/${video.contentId}.jpg`
-      const fileExists = await RNFS.exists(filePath)
-
-      if (!fileExists) {
-        try {
-          await RNFS.downloadFile({
-            fromUrl: video.link,
-            toFile: filePath,
-          }).promise
-          Toast.show({
-            type: "success",
-            text1: "Download Complete",
-            text2: `Downloaded: ${video.title}`,
-          })
-        } catch (error) {
-          Toast.show({
-            type: "error",
-            text1: "Download Failed",
-            text2: `Failed to download: ${video.title}`,
-          })
-        }
-      } else {
-        Toast.show({
-          type: "info",
-          text1: "File Exists",
-          text2: `Already downloaded: ${video.title}`,
+      if (!isValid) {
+        console.warn("Invalid media item:", item, {
+          urlValid: typeof item.url === "string",
+          titleValid: typeof item.title === "string",
+          tvScreenValid: typeof item.tvScreen === "string",
+          typeValid: item.type.toLowerCase() === "video" || item.type.toLowerCase() === "image",
+          urlFormatValid:
+            item.url.includes("drive.google.com") || item.url.includes("docs.google.com"),
         })
       }
-    }
+      return isValid
+    })
   }
 
-  const handleEnd = () => {
-    setCurrentIndex((prevIndex) => (prevIndex + 1) % videos.length)
+  const getFileExtension = (url: string): string => {
+    const match = url.match(/\.([^.]+)(?:\?|$)/)
+    return match ? match[1].toLowerCase() : "mp4"
+  }
+  const downloadFiles = async (items: MediaItem[]) => {
+    items.map(async (item) => {
+      const driveData = await fetchDriveData(item.url)
+      // download progress
+      setDownloadProgress((prev) => ({ ...prev, [item.title]: 100 }))
+      console.log("===> driveData: ", driveData)
+    })
   }
 
-  const renderMedia = (media: any) => {
-    if (media.type === "video") {
-      const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.jpg`
+  const handleMediaEnd = useCallback(() => {
+    setCurrentIndex((prev) => (prev + 1) % mediaItems.length)
+  }, [mediaItems.length])
+
+  const calculateMediaSize = useCallback(() => {
+    const screenWidth = Dimensions.get("window").width
+    const screenHeight = Dimensions.get("window").height
+
+    return {
+      width: screenWidth,
+      height: screenHeight,
+    }
+  }, [])
+
+  // Render functions
+  const renderMedia = useCallback(
+    (media: MediaItem) => {
+      const extension = getFileExtension(media.url)
+      const filePath = `${DocumentDirectoryPath}/${media.title}.${extension}`
+
       return (
         <Video
           source={{ uri: filePath }}
           ref={videoPlayer}
-          onEnd={handleEnd}
-          onLoad={(data) => {
-            const { width, height } = data.naturalSize
-            if (width && height) {
-              setMediaSize({ width, height })
+          onEnd={handleMediaEnd}
+          onLoad={({ naturalSize, duration }) => {
+            if (naturalSize.width && naturalSize.height) {
+              setMediaSize(calculateMediaSize())
             }
+            // Log video view when it starts
+            logMediaView(media, duration * 1000)
           }}
           resizeMode="contain"
-          style={{ width: mediaSize.width, height: mediaSize.height }}
+          style={[$mediaContainer, mediaSize]}
         />
       )
-    } else {
-      const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.jpg`
-      Image.getSize(
-        `file://${filePath}`,
-        (width, height) => setMediaSize({ width, height }),
-        (error) => {
-          console.error("Failed to load image or unsupported format:", error)
-          handleEnd() // Skip to next media
-        },
-      )
-      return (
-        <Image
-          source={{ uri: `file://${filePath}` }}
-          style={{ width: mediaSize.width, height: mediaSize.height }}
-        />
-      )
-    }
+    },
+    [calculateMediaSize, handleMediaEnd, logMediaView],
+  )
+
+  if (error) {
+    return (
+      <Screen style={$root}>
+        <Text style={$errorText}>{error}</Text>
+      </Screen>
+    )
   }
 
   return (
-    <>
-      <Screen style={$root} preset="scroll">
-        <Text text="videos" />
-        {videos.length > 0 && renderMedia(videos[currentIndex])}
-      </Screen>
+    <Screen style={$root}>
+      {isLoading ? (
+        <View style={$centerContent}>
+          <ActivityIndicator size="large" />
+          <Text style={$loadingText}>Loading media...</Text>
+          {Object.entries(downloadProgress).map(([contentId, progress]) => (
+            <Text key={contentId}>
+              Downloading {contentId}: {Math.round(progress)}%
+            </Text>
+          ))}
+        </View>
+      ) : (
+        mediaItems.length > 0 && renderMedia(mediaItems[currentIndex])
+      )}
       <Toast />
-    </>
+    </Screen>
   )
 })
 
+const $centerContent: ViewStyle = {
+  flex: 1,
+  justifyContent: "center",
+  alignItems: "center",
+}
+
+const $loadingText: ViewStyle = {
+  marginTop: 10,
+}
+
+const $errorText: ViewStyle = {
+  backgroundColor: "red",
+  alignContent: "center",
+  margin: 20,
+}
+
+const $mediaContainer: ViewStyle = {
+  flex: 1,
+  position: "relative",
+  width: "100%",
+  height: "100%",
+}
 const $root: ViewStyle = {
   flex: 1,
+  position: "relative",
+  backgroundColor: "black", // Or any color you prefer
 }
