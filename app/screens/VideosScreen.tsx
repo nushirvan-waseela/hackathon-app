@@ -10,6 +10,8 @@ import { logData, LogType } from "@/services/api/writeSheet"
 import Toast from "react-native-toast-message"
 import { fetchSheetData } from "@/services/api/readSheet"
 import { fetchDriveData } from "@/services/api/readDrive"
+import { loadString } from "@/utils/storage"
+import { downloadFiles } from "@/utils/downloadFile"
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
 
@@ -44,6 +46,11 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   const videoPlayer = useRef<any>(null)
   const unmountedRef = useRef(false)
 
+  // Progress handler
+  const handleProgress = useCallback((progress: Record<string, number>) => {
+    setDownloadProgress((prev) => ({ ...prev, ...progress }))
+  }, [])
+
   // Fetch and cache media data
   const fetchAndCacheData = useCallback(async () => {
     if (unmountedRef.current) return
@@ -60,11 +67,12 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
       }
 
       // Fetch fresh data from your API
-      const data = await fetchSheetData("123") // Consider making ID configurable
+      const key = loadString("deviceId")
+      const data = await fetchSheetData(key as string) // Consider making ID configurable
       const validatedData = validateMediaData(data.sheet1)
 
       // Download media files
-      await downloadFiles(validatedData)
+      await downloadFiles(handleProgress, validatedData)
 
       // Update state and cache
       if (!unmountedRef.current) {
@@ -138,17 +146,13 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
         typeof item.url === "string" &&
         typeof item.title === "string" &&
         typeof item.tvScreen === "string" &&
-        (item.type.toLowerCase() === "video" || item.type.toLowerCase() === "image") &&
-        (item.url.includes("drive.google.com") || item.url.includes("docs.google.com"))
-
+        (item.type.toLowerCase() === "video" || item.type.toLowerCase() === "image")
       if (!isValid) {
         console.warn("Invalid media item:", item, {
           urlValid: typeof item.url === "string",
           titleValid: typeof item.title === "string",
           tvScreenValid: typeof item.tvScreen === "string",
           typeValid: item.type.toLowerCase() === "video" || item.type.toLowerCase() === "image",
-          urlFormatValid:
-            item.url.includes("drive.google.com") || item.url.includes("docs.google.com"),
         })
       }
       return isValid
@@ -159,18 +163,6 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     const match = url.match(/\.([^.]+)(?:\?|$)/)
     return match ? match[1].toLowerCase() : "mp4"
   }
-  const downloadFiles = async (items: MediaItem[]) => {
-    items.map(async (item) => {
-      const driveData = await fetchDriveData(item.url)
-      // download progress
-      setDownloadProgress((prev) => ({ ...prev, [item.title]: 100 }))
-      console.log("===> driveData: ", driveData)
-    })
-  }
-
-  const handleMediaEnd = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % mediaItems.length)
-  }, [mediaItems.length])
 
   const calculateMediaSize = useCallback(() => {
     const screenWidth = Dimensions.get("window").width
@@ -183,6 +175,12 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   }, [])
 
   // Render functions
+  const handleMediaEnd = useCallback(() => {
+    if (mediaItems.length > 1) {
+      setCurrentIndex((prev) => (prev + 1) % mediaItems.length)
+    }
+  }, [mediaItems.length])
+
   const renderMedia = useCallback(
     (media: MediaItem) => {
       const extension = getFileExtension(media.url)
@@ -202,10 +200,11 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
           }}
           resizeMode="contain"
           style={[$mediaContainer, mediaSize]}
+          repeat={mediaItems.length === 1} // Set repeat to true if there is only one video
         />
       )
     },
-    [calculateMediaSize, handleMediaEnd, logMediaView],
+    [calculateMediaSize, handleMediaEnd, logMediaView, mediaItems.length],
   )
 
   if (error) {

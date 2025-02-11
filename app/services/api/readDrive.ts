@@ -12,6 +12,7 @@ export const fetchDriveData = async (url: string) => {
     const driveId = urlParts[1]
     const response = await axios.get(`https://drive.google.com/uc?export=download&id=${driveId}`)
 
+    console.log("🔥 ~ fetchDriveData ~ response: ", response)
     // Depending on your file type, you might need different parsing
     // For JSON:
     const data = response.data
