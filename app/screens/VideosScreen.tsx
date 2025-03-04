@@ -1,264 +1,385 @@
-import { FC, useEffect, useState, useRef, useCallback } from "react"
+import { FC, useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { observer } from "mobx-react-lite"
-import { ViewStyle, Dimensions, ActivityIndicator, View } from "react-native"
+import {
+  ViewStyle,
+  Dimensions,
+  ActivityIndicator,
+  ImageStyle,
+  TextStyle,
+  Animated,
+  Platform,
+  View,
+} from "react-native"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { AppStackScreenProps } from "@/navigators"
 import { Screen, Text } from "@/components"
-import { DocumentDirectoryPath } from "react-native-fs"
+import RNFS from "react-native-fs"
 import Video from "react-native-video"
+import { Image } from "react-native"
+import { fetchSheetData } from "@/services/api/readSheet"
 import { logData, LogType } from "@/services/api/writeSheet"
 import Toast from "react-native-toast-message"
-import { fetchSheetData } from "@/services/api/readSheet"
-import { fetchDriveData } from "@/services/api/readDrive"
+import React from "react"
 import { loadString } from "@/utils/storage"
-import { downloadFiles } from "@/utils/downloadFile"
+
+interface MediaItem {
+  contentId: string
+  title: string
+  type: "video" | "image"
+  link: string
+}
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
 
-// Updated interface to match the actual data structure
-interface MediaItem {
-  time: string
-  email: string
-  tvScreen: string
-  title: string
-  url: string
-  type: "video" | "image"
-}
-
-// Constants
-const STORAGE_KEY = "CMSData"
-const REFRESH_INTERVAL = 100000
-const TIMEZONE = "Asia/Karachi"
+const MEDIA_DISPLAY_DURATION = 3000
+const REFRESH_INTERVAL = 60000 // Increased to reduce unnecessary API calls
+const TRANSITION_DURATION = 300
 
 export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScreen() {
-  // State management
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
+  const [videos, setVideos] = useState<MediaItem[]>([])
+  const [currentIndex, setCurrentIndex] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
-  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({})
-  const [mediaSize, setMediaSize] = useState(() => ({
-    width: Dimensions.get("window").width,
-    height: Dimensions.get("window").height * 0.9,
-  }))
-
-  // Refs
+  const [loading, setLoading] = useState<boolean>(true)
   const videoPlayer = useRef<any>(null)
-  const unmountedRef = useRef(false)
+  const [mediaSize, setMediaSize] = useState<{ width: number; height: number }>({
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height * 0.7,
+  })
+  const DEVICE_ID = loadString("deviceId")
+  const fadeAnim = useRef(new Animated.Value(1)).current
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
 
-  // Progress handler
-  const handleProgress = useCallback((progress: Record<string, number>) => {
-    setDownloadProgress((prev) => ({ ...prev, ...progress }))
+  // Cache for downloaded files
+  const downloadedFilesRef = useRef<Set<string>>(new Set())
+
+  // Keep track of timers to clean them up properly
+  const timersRef = useRef<NodeJS.Timeout[]>([])
+
+  const clearAllTimers = useCallback(() => {
+    timersRef.current.forEach((timer) => clearTimeout(timer))
+    timersRef.current = []
   }, [])
 
-  // Fetch and cache media data
-  const fetchAndCacheData = useCallback(async () => {
-    if (unmountedRef.current) return
-
-    try {
-      setIsLoading(true)
-      setError(null)
-
-      // Try to get cached data first
-      const cachedData = await AsyncStorage.getItem(STORAGE_KEY)
-      if (cachedData) {
-        const parsed = JSON.parse(cachedData)
-        setMediaItems(parsed)
-      }
-
-      // Fetch fresh data from your API
-      const key = loadString("deviceId")
-      const data = await fetchSheetData(key as string) // Consider making ID configurable
-      const validatedData = validateMediaData(data.sheet1)
-
-      // Download media files
-      await downloadFiles(handleProgress, validatedData)
-
-      // Update state and cache
-      if (!unmountedRef.current) {
-        setMediaItems(validatedData)
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(validatedData))
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred")
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: "Failed to fetch or process media data",
-      })
-    } finally {
-      if (!unmountedRef.current) {
-        setIsLoading(false)
-      }
-    }
+  const addTimer = useCallback((callback: () => void, delay: number) => {
+    const timer = setTimeout(callback, delay)
+    timersRef.current.push(timer)
+    return timer
   }, [])
 
-  // Initialize and cleanup
-  useEffect(() => {
-    fetchAndCacheData()
-    const interval = setInterval(fetchAndCacheData, REFRESH_INTERVAL)
+  const downloadFiles = useCallback(async (mediaItems: MediaItem[]) => {
+    const downloadPromises = mediaItems.map(async (media) => {
+      const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.${media.type === "video" ? "mp4" : "jpg"}`
 
-    return () => {
-      unmountedRef.current = true
-      clearInterval(interval)
-    }
-  }, [fetchAndCacheData])
+      // Skip if already in our cache
+      if (downloadedFilesRef.current.has(media.contentId)) {
+        return
+      }
 
-  // Media playback logging
-  const logMediaView = useCallback(async (media: MediaItem, duration: number) => {
-    const now = new Date()
-    const endTime = new Date(now.getTime() + duration)
+      try {
+        const fileExists = await RNFS.exists(filePath)
+        if (!fileExists) {
+          await RNFS.downloadFile({
+            fromUrl: media.link,
+            toFile: filePath,
+          }).promise
 
-    const formatter = new Intl.DateTimeFormat("en-GB", {
-      timeZone: TIMEZONE,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true,
-    })
-
-    const dateFormatter = new Intl.DateTimeFormat("en-GB", {
-      timeZone: TIMEZONE,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    })
-
-    const logEntry: LogType = {
-      tv_id: media.tvScreen.toString(),
-      content_id: media.title.toString(),
-      timestamp_start: formatter.format(now),
-      timestamp_end: formatter.format(endTime),
-      date: dateFormatter.format(now),
-    }
-
-    try {
-      await logData(logEntry)
-    } catch (err) {
-      console.error("Failed to log media view:", err)
-    }
-  }, [])
-
-  // Helper functions
-  const validateMediaData = (data: any[]): MediaItem[] => {
-    return data.filter((item) => {
-      const isValid =
-        typeof item.url === "string" &&
-        typeof item.title === "string" &&
-        typeof item.tvScreen === "string" &&
-        (item.type.toLowerCase() === "video" || item.type.toLowerCase() === "image")
-      if (!isValid) {
-        console.warn("Invalid media item:", item, {
-          urlValid: typeof item.url === "string",
-          titleValid: typeof item.title === "string",
-          tvScreenValid: typeof item.tvScreen === "string",
-          typeValid: item.type.toLowerCase() === "video" || item.type.toLowerCase() === "image",
+          // Add to our cache
+          downloadedFilesRef.current.add(media.contentId)
+        } else {
+          downloadedFilesRef.current.add(media.contentId)
+        }
+      } catch (error) {
+        console.error(`Failed to download: ${media.title}`, error)
+        Toast.show({
+          type: "error",
+          text1: "Download Failed",
+          text2: `Failed to download: ${media.title}`,
         })
       }
-      return isValid
     })
-  }
 
-  const getFileExtension = (url: string): string => {
-    const match = url.match(/\.([^.]+)(?:\?|$)/)
-    return match ? match[1].toLowerCase() : "mp4"
-  }
-
-  const calculateMediaSize = useCallback(() => {
-    const screenWidth = Dimensions.get("window").width
-    const screenHeight = Dimensions.get("window").height
-
-    return {
-      width: screenWidth,
-      height: screenHeight,
-    }
+    await Promise.all(downloadPromises)
   }, [])
 
-  // Render functions
-  const handleMediaEnd = useCallback(() => {
-    if (mediaItems.length > 1) {
-      setCurrentIndex((prev) => (prev + 1) % mediaItems.length)
+  const fetchData = useCallback(async () => {
+    try {
+      if (!DEVICE_ID) {
+        setError("Device ID not found")
+        return
+      }
+
+      // First try to load from cache
+      const cachedData = await AsyncStorage.getItem("CMSData")
+
+      if (cachedData) {
+        const parsedData = JSON.parse(cachedData)
+        setVideos(parsedData.sheet1)
+        setLoading(false)
+
+        // Download in background
+        downloadFiles(parsedData.sheet1)
+      }
+
+      // Then fetch fresh data
+      const data = await fetchSheetData(DEVICE_ID)
+
+      if (data && data.sheet1 && data.sheet1.length > 0) {
+        await downloadFiles(data.sheet1)
+        setVideos(data.sheet1)
+        setLoading(false)
+        await AsyncStorage.setItem("CMSData", JSON.stringify(data))
+      } else if (!cachedData) {
+        // Only show error if we don't have cached data
+        setError("No media content available")
+      }
+    } catch (error) {
+      console.error("Fetch error:", error)
+      // Only show error if we don't have videos loaded
+      if (videos.length === 0) {
+        setError("Failed to fetch data")
+      }
     }
-  }, [mediaItems.length])
+  }, [DEVICE_ID, downloadFiles, videos.length])
+
+  useEffect(() => {
+    fetchData()
+    const intervalId = setInterval(fetchData, REFRESH_INTERVAL)
+
+    return () => {
+      clearInterval(intervalId)
+      clearAllTimers()
+    }
+  }, [fetchData, clearAllTimers])
+
+  const handleEnd = useCallback(() => {
+    if (isTransitioning || videos.length === 0) return
+
+    setIsTransitioning(true)
+    setIsPaused(true) // Pause video during transition
+
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: TRANSITION_DURATION,
+      useNativeDriver: true,
+    }).start(() => {
+      setCurrentIndex((prevIndex) => (prevIndex + 1) % videos.length)
+
+      // Short delay before fading in the next item
+      addTimer(() => {
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: TRANSITION_DURATION,
+          useNativeDriver: true,
+        }).start(() => {
+          setIsTransitioning(false)
+          setIsPaused(false) // Resume video after transition
+        })
+      }, 100)
+    })
+  }, [videos.length, fadeAnim, isTransitioning, addTimer])
+
+  const updateLogData = useCallback(
+    (media: MediaItem) => {
+      if (!DEVICE_ID) return
+
+      const now = new Date()
+      const optionsTime = {
+        timeZone: "Asia/Karachi",
+        hour: "2-digit" as const,
+        minute: "2-digit" as const,
+        second: "2-digit" as const,
+        hour12: true,
+      }
+      const optionsDate = {
+        timeZone: "Asia/Karachi",
+        year: "numeric" as const,
+        month: "2-digit" as const,
+        day: "2-digit" as const,
+      }
+
+      const timestampEnd = new Date(now)
+      timestampEnd.setSeconds(timestampEnd.getSeconds() + 3)
+
+      const newLog = {
+        tv_id: DEVICE_ID,
+        content_id: media.contentId,
+        timestamp_start: new Intl.DateTimeFormat("en-GB", optionsTime).format(now),
+        timestamp_end: new Intl.DateTimeFormat("en-GB", optionsTime).format(timestampEnd),
+        date: new Intl.DateTimeFormat("en-GB", optionsDate).format(now),
+      }
+
+      // Use our timer management
+      addTimer(() => logData(newLog), MEDIA_DISPLAY_DURATION)
+    },
+    [DEVICE_ID, addTimer],
+  )
+
+  useEffect(() => {
+    if (videos.length > 0 && !isTransitioning) {
+      const currentMedia = videos[currentIndex]
+
+      if (currentMedia?.type === "image") {
+        updateLogData(currentMedia)
+
+        // Use our timer management
+        addTimer(handleEnd, MEDIA_DISPLAY_DURATION)
+      }
+    }
+  }, [currentIndex, videos, updateLogData, handleEnd, isTransitioning, addTimer])
+
+  const getMediaPath = useCallback((media: MediaItem) => {
+    const extension = media.type === "video" ? "mp4" : "jpg"
+    return `${RNFS.DocumentDirectoryPath}/${media.contentId}.${extension}`
+  }, [])
 
   const renderMedia = useCallback(
     (media: MediaItem) => {
-      const extension = getFileExtension(media.url)
-      const filePath = `${DocumentDirectoryPath}/${media.title}.${extension}`
+      const filePath = getMediaPath(media)
+
+      if (media.type === "video") {
+        return (
+          <Animated.View style={[{ opacity: fadeAnim, flex: 1 }]}>
+            <Video
+              source={{ uri: `file://${filePath}` }}
+              ref={videoPlayer}
+              onEnd={handleEnd}
+              onLoad={(data) => {
+                const { width, height } = data.naturalSize || { width: 0, height: 0 }
+                if (width && height) {
+                  setMediaSize({ width, height })
+                }
+                updateLogData(media)
+              }}
+              resizeMode="contain"
+              style={$media}
+              repeat={false}
+              paused={isPaused}
+              onError={(error) => {
+                console.error("Video error:", error)
+                handleEnd() // Skip to next on error
+              }}
+            />
+          </Animated.View>
+        )
+      }
 
       return (
-        <Video
-          source={{ uri: filePath }}
-          ref={videoPlayer}
-          onEnd={handleMediaEnd}
-          onLoad={({ naturalSize, duration }) => {
-            if (naturalSize.width && naturalSize.height) {
-              setMediaSize(calculateMediaSize())
-            }
-            // Log video view when it starts
-            logMediaView(media, duration * 1000)
-          }}
-          resizeMode="contain"
-          style={[$mediaContainer, mediaSize]}
-          repeat={mediaItems.length === 1} // Set repeat to true if there is only one video
-        />
+        <Animated.View style={[{ opacity: fadeAnim, flex: 1 }]}>
+          <Image
+            source={{ uri: `file://${filePath}` }}
+            style={$media as ImageStyle}
+            resizeMode="contain"
+            onLoad={(event) => {
+              const { width, height } = event.nativeEvent.source || { width: 0, height: 0 }
+              if (width && height) {
+                setMediaSize({ width, height })
+              }
+            }}
+            onError={() => {
+              console.error("Failed to load image:", filePath)
+              handleEnd() // Skip to next on error
+            }}
+          />
+        </Animated.View>
       )
     },
-    [calculateMediaSize, handleMediaEnd, logMediaView, mediaItems.length],
+    [handleEnd, fadeAnim, getMediaPath, updateLogData, isPaused],
   )
 
-  if (error) {
+  const currentMedia = useMemo(
+    () => (videos.length > 0 && currentIndex < videos.length ? videos[currentIndex] : null),
+    [videos, currentIndex],
+  )
+
+  if (loading && !currentMedia) {
     return (
-      <Screen style={$root}>
-        <Text style={$errorText}>{error}</Text>
+      <Screen style={$root} preset="fixed">
+        <ActivityIndicator size="large" color="#ffffff" />
+      </Screen>
+    )
+  }
+
+  if (error && videos.length === 0) {
+    return (
+      <Screen style={$root} preset="fixed">
+        <Text text={error} style={$errorText} />
       </Screen>
     )
   }
 
   return (
-    <Screen style={$root}>
-      {isLoading ? (
-        <View style={$centerContent}>
-          <ActivityIndicator size="large" />
-          <Text style={$loadingText}>Loading media...</Text>
-          {Object.entries(downloadProgress).map(([contentId, progress]) => (
-            <Text key={contentId}>
-              Downloading {contentId}: {Math.round(progress)}%
-            </Text>
-          ))}
-        </View>
-      ) : (
-        mediaItems.length > 0 && renderMedia(mediaItems[currentIndex])
-      )}
+    <>
+      <Screen style={$root} preset="fixed">
+        {currentMedia ? (
+          <View style={$mediaContainer}>
+            {renderMedia(currentMedia)}
+            <Text text={currentMedia.title} style={$title} />
+            <Text text={`${currentIndex + 1}/${videos.length}`} style={$counter} />
+          </View>
+        ) : (
+          <ActivityIndicator size="large" color="#ffffff" />
+        )}
+      </Screen>
       <Toast />
-    </Screen>
+    </>
   )
 })
 
-const $centerContent: ViewStyle = {
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window")
+
+const $root: ViewStyle = {
   flex: 1,
-  justifyContent: "center",
+  backgroundColor: "#000",
   alignItems: "center",
-}
-
-const $loadingText: ViewStyle = {
-  marginTop: 10,
-}
-
-const $errorText: ViewStyle = {
-  backgroundColor: "red",
-  alignContent: "center",
-  margin: 20,
+  justifyContent: "center",
 }
 
 const $mediaContainer: ViewStyle = {
   flex: 1,
-  position: "relative",
-  width: "100%",
-  height: "100%",
+  width: screenWidth,
+  justifyContent: "center",
+  alignItems: "center",
 }
-const $root: ViewStyle = {
-  flex: 1,
-  position: "relative",
-  backgroundColor: "black", // Or any color you prefer
+
+const $media: ViewStyle = {
+  width: screenWidth,
+  height: screenHeight * 0.7,
+  backgroundColor: "#000",
+}
+
+const $title: TextStyle = {
+  position: "absolute",
+  bottom: 20,
+  left: 20,
+  right: 20,
+  backgroundColor: "rgba(0,0,0,0.7)",
+  padding: 15,
+  borderRadius: 12,
+  color: "#ffffff",
+  fontSize: 18,
+  textAlign: "center",
+  fontWeight: "600",
+}
+
+const $counter: TextStyle = {
+  position: "absolute",
+  top: 20,
+  right: 20,
+  backgroundColor: "rgba(0,0,0,0.7)",
+  padding: 8,
+  borderRadius: 20,
+  color: "#ffffff",
+  fontSize: 14,
+  fontWeight: "500",
+}
+
+const $errorText: TextStyle = {
+  color: "#ff4444",
+  fontSize: 16,
+  textAlign: "center",
+  padding: 20,
+  backgroundColor: "rgba(255,68,68,0.1)",
+  borderRadius: 8,
+  margin: 20,
 }
