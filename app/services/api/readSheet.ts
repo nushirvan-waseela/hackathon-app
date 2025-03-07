@@ -6,9 +6,7 @@ const SHEET_URL =
 export const fetchSheetData = async (tvID: string) => {
   try {
     // Fetch data from the Google Sheet
-    console.log("===> SHEET_URL: ", SHEET_URL)
     const response = await axios.get(SHEET_URL)
-    console.log("===> response: ", response)
 
     // The response data is in a special format, so we need to extract the rows
     const jsonResponse = JSON.parse(response.data.substring(47).slice(0, -2))
@@ -20,7 +18,6 @@ export const fetchSheetData = async (tvID: string) => {
     })
 
     // Log the extracted data
-    console.log("Fetched Sheet Data:", sheetData)
     console.log("====> tvuid: ", tvID)
     // Reformat the data
     const formattedData = {
@@ -35,9 +32,6 @@ export const fetchSheetData = async (tvID: string) => {
         }))
         .filter((item: any) => item.tvId == Number(tvID)), // Filter based on tvId
     }
-
-    console.log("===> formated data: ", formattedData)
-
     return formattedData
   } catch (error) {
     console.error("Error fetching sheet data:", error)

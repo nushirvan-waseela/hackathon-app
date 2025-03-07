@@ -5,7 +5,7 @@ import { useNavigation } from "@react-navigation/native"
 import { AppStackScreenProps } from "@/navigators"
 import { observer } from "mobx-react-lite"
 import { FC } from "react"
-import logo from "../../assets/images/logo.png"
+import logo from "assets/images/logo.png"
 
 interface SplashScreenProps extends AppStackScreenProps<"SplashScreen"> {}
 
@@ -33,7 +33,7 @@ export const SplashScreen: FC<SplashScreenProps> = observer(function SplashScree
       }),
     ]).start(() => {
       setTimeout(() => {
-        navigation.replace("Welcome")
+        navigation.navigate("Welcome" as never)
       }, 500) // Hold for a brief moment before switching screens
     })
   }, [])

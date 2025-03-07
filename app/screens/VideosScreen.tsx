@@ -1,4 +1,4 @@
-import { FC, useEffect, useState, useRef, useCallback, useMemo } from "react"
+import React, { FC, useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { observer } from "mobx-react-lite"
 import {
   ViewStyle,
@@ -17,9 +17,8 @@ import RNFS from "react-native-fs"
 import Video from "react-native-video"
 import { Image } from "react-native"
 import { fetchSheetData } from "@/services/api/readSheet"
-import { logData, LogType } from "@/services/api/writeSheet"
+import { logData } from "@/services/api/writeSheet"
 import Toast from "react-native-toast-message"
-import React from "react"
 import { loadString } from "@/utils/storage"
 
 interface MediaItem {
@@ -32,7 +31,7 @@ interface MediaItem {
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
 
 const MEDIA_DISPLAY_DURATION = 3000
-const REFRESH_INTERVAL = 60000 // Increased to reduce unnecessary API calls
+const REFRESH_INTERVAL = 60000
 const TRANSITION_DURATION = 300
 
 export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScreen() {
@@ -40,7 +39,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   const [currentIndex, setCurrentIndex] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
-  const videoPlayer = useRef<any>(null)
+  const videoPlayer = useRef(null)
   const [mediaSize, setMediaSize] = useState<{ width: number; height: number }>({
     width: Dimensions.get("window").width,
     height: Dimensions.get("window").height * 0.7,
@@ -123,6 +122,10 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
 
       // Then fetch fresh data
       const data = await fetchSheetData(DEVICE_ID)
+      if (data && data.sheet1 && data.sheet1.length === 0) {
+        setError("No media content available")
+        return
+      }
 
       if (data && data.sheet1 && data.sheet1.length > 0) {
         await downloadFiles(data.sheet1)
@@ -136,11 +139,11 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     } catch (error) {
       console.error("Fetch error:", error)
       // Only show error if we don't have videos loaded
-      if (videos.length === 0) {
+      if (videos?.length === 0) {
         setError("Failed to fetch data")
       }
     }
-  }, [DEVICE_ID, downloadFiles, videos.length])
+  }, [DEVICE_ID, downloadFiles, videos?.length])
 
   useEffect(() => {
     fetchData()
@@ -259,6 +262,12 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
                 console.error("Video error:", error)
                 handleEnd() // Skip to next on error
               }}
+              bufferConfig={{
+                minBufferMs: 15000,
+                maxBufferMs: 30000,
+                bufferForPlaybackMs: 2500,
+                bufferForPlaybackAfterRebufferMs: 5000,
+              }}
             />
           </Animated.View>
         )
@@ -288,7 +297,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   )
 
   const currentMedia = useMemo(
-    () => (videos.length > 0 && currentIndex < videos.length ? videos[currentIndex] : null),
+    () => (videos?.length > 0 && currentIndex < videos?.length ? videos[currentIndex] : null),
     [videos, currentIndex],
   )
 
@@ -300,7 +309,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     )
   }
 
-  if (error && videos.length === 0) {
+  if (error && videos?.length === 0) {
     return (
       <Screen style={$root} preset="fixed">
         <Text text={error} style={$errorText} />
@@ -314,8 +323,7 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
         {currentMedia ? (
           <View style={$mediaContainer}>
             {renderMedia(currentMedia)}
-            <Text text={currentMedia.title} style={$title} />
-            <Text text={`${currentIndex + 1}/${videos.length}`} style={$counter} />
+            <Text text={`${currentIndex + 1}/${videos?.length}`} style={$counter} />
           </View>
         ) : (
           <ActivityIndicator size="large" color="#ffffff" />
@@ -330,6 +338,8 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get("window")
 
 const $root: ViewStyle = {
   flex: 1,
+  width: screenWidth,
+  height: screenHeight,
   backgroundColor: "#000",
   alignItems: "center",
   justifyContent: "center",
@@ -338,28 +348,15 @@ const $root: ViewStyle = {
 const $mediaContainer: ViewStyle = {
   flex: 1,
   width: screenWidth,
+  height: screenHeight,
   justifyContent: "center",
   alignItems: "center",
 }
 
 const $media: ViewStyle = {
   width: screenWidth,
-  height: screenHeight * 0.7,
+  height: screenHeight,
   backgroundColor: "#000",
-}
-
-const $title: TextStyle = {
-  position: "absolute",
-  bottom: 20,
-  left: 20,
-  right: 20,
-  backgroundColor: "rgba(0,0,0,0.7)",
-  padding: 15,
-  borderRadius: 12,
-  color: "#ffffff",
-  fontSize: 18,
-  textAlign: "center",
-  fontWeight: "600",
 }
 
 const $counter: TextStyle = {

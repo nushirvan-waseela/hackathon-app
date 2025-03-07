@@ -1,9 +1,9 @@
 {
-  "name": "TestApp",
-  "displayName": "TestApp",
+  "name": "KDukaanTV",
+  "displayName": "KDukaanTV",
   "expo": {
-    "name": "TestApp",
-    "slug": "TestApp",
+    "name": "KDukaanTV",
+    "slug": "KDukaanTV",
     "scheme": "testapp",
     "version": "1.0.0",
     "orientation": "default",
@@ -14,9 +14,7 @@
     },
     "newArchEnabled": false,
     "jsEngine": "hermes",
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "android": {
       "icon": "./assets/images/app-icon-android-legacy.png",
       "package": "com.testapp",
