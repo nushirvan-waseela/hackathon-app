@@ -20,12 +20,24 @@ import { fetchSheetData } from "@/services/api/readSheet"
 import { logData } from "@/services/api/writeSheet"
 import Toast from "react-native-toast-message"
 import { loadString } from "@/utils/storage"
+import { downloadFiles, getFilePath } from "@/utils/downloadFile"
 
 interface MediaItem {
-  contentId: string
+  contentId: number
+  id: number
   title: string
   type: "video" | "image"
+  tvId: number
   link: string
+  filePath?: string
+}
+
+interface LogType {
+  tv_id: string
+  content_id: string
+  timestamp_start: string
+  timestamp_end: string
+  date: string
 }
 
 interface VideosScreenProps extends AppStackScreenProps<"Videos"> {}
@@ -64,41 +76,6 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     const timer = setTimeout(callback, delay)
     timersRef.current.push(timer)
     return timer
-  }, [])
-
-  const downloadFiles = useCallback(async (mediaItems: MediaItem[]) => {
-    const downloadPromises = mediaItems.map(async (media) => {
-      const filePath = `${RNFS.DocumentDirectoryPath}/${media.contentId}.${media.type === "video" ? "mp4" : "jpg"}`
-
-      // Skip if already in our cache
-      if (downloadedFilesRef.current.has(media.contentId)) {
-        return
-      }
-
-      try {
-        const fileExists = await RNFS.exists(filePath)
-        if (!fileExists) {
-          await RNFS.downloadFile({
-            fromUrl: media.link,
-            toFile: filePath,
-          }).promise
-
-          // Add to our cache
-          downloadedFilesRef.current.add(media.contentId)
-        } else {
-          downloadedFilesRef.current.add(media.contentId)
-        }
-      } catch (error) {
-        console.error(`Failed to download: ${media.title}`, error)
-        Toast.show({
-          type: "error",
-          text1: "Download Failed",
-          text2: `Failed to download: ${media.title}`,
-        })
-      }
-    })
-
-    await Promise.all(downloadPromises)
   }, [])
 
   const fetchData = useCallback(async () => {
@@ -204,12 +181,18 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
       const timestampEnd = new Date(now)
       timestampEnd.setSeconds(timestampEnd.getSeconds() + 3)
 
-      const newLog = {
-        tv_id: DEVICE_ID,
-        content_id: media.contentId,
-        timestamp_start: new Intl.DateTimeFormat("en-GB", optionsTime).format(now),
-        timestamp_end: new Intl.DateTimeFormat("en-GB", optionsTime).format(timestampEnd),
-        date: new Intl.DateTimeFormat("en-GB", optionsDate).format(now),
+      const timeStr = new Intl.DateTimeFormat("en-GB", optionsTime).format(now)
+      const dateStr = new Intl.DateTimeFormat("en-GB", optionsDate).format(now)
+
+      const newLog: LogType = {
+        tv_id: DEVICE_ID || "",
+        content_id: media.contentId.toString(),
+        timestamp_start: timeStr,
+        timestamp_end: new Date(now.getTime() + 3000).toLocaleTimeString("en-GB", {
+          timeZone: "Asia/Karachi",
+          hour12: true,
+        }),
+        date: dateStr,
       }
 
       // Use our timer management
@@ -231,42 +214,29 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
     }
   }, [currentIndex, videos, updateLogData, handleEnd, isTransitioning, addTimer])
 
-  const getMediaPath = useCallback((media: MediaItem) => {
-    const extension = media.type === "video" ? "mp4" : "jpg"
-    return `${RNFS.DocumentDirectoryPath}/${media.contentId}.${extension}`
-  }, [])
-
   const renderMedia = useCallback(
     (media: MediaItem) => {
-      const filePath = getMediaPath(media)
+      const filePath = getFilePath(media)
+      console.log("Attempting to load media:", filePath)
 
       if (media.type === "video") {
         return (
-          <Animated.View style={[{ opacity: fadeAnim, flex: 1 }]}>
+          <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
             <Video
               source={{ uri: `file://${filePath}` }}
               ref={videoPlayer}
               onEnd={handleEnd}
-              onLoad={(data) => {
-                const { width, height } = data.naturalSize || { width: 0, height: 0 }
-                if (width && height) {
-                  setMediaSize({ width, height })
-                }
+              onLoad={() => {
+                console.log("Video loaded successfully:", filePath)
                 updateLogData(media)
               }}
               resizeMode="contain"
               style={$media}
-              repeat={false}
+              repeat={videos.length === 1}
               paused={isPaused}
               onError={(error) => {
-                console.error("Video error:", error)
-                handleEnd() // Skip to next on error
-              }}
-              bufferConfig={{
-                minBufferMs: 15000,
-                maxBufferMs: 30000,
-                bufferForPlaybackMs: 2500,
-                bufferForPlaybackAfterRebufferMs: 5000,
+                console.error("Video error for file:", filePath, error)
+                handleEnd()
               }}
             />
           </Animated.View>
@@ -274,26 +244,24 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
       }
 
       return (
-        <Animated.View style={[{ opacity: fadeAnim, flex: 1 }]}>
+        <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
           <Image
             source={{ uri: `file://${filePath}` }}
             style={$media as ImageStyle}
             resizeMode="contain"
-            onLoad={(event) => {
-              const { width, height } = event.nativeEvent.source || { width: 0, height: 0 }
-              if (width && height) {
-                setMediaSize({ width, height })
-              }
+            onLoad={() => {
+              console.log("Image loaded successfully:", filePath)
+              updateLogData(media)
             }}
-            onError={() => {
-              console.error("Failed to load image:", filePath)
-              handleEnd() // Skip to next on error
+            onError={(error) => {
+              console.error("Failed to load image:", filePath, error)
+              handleEnd()
             }}
           />
         </Animated.View>
       )
     },
-    [handleEnd, fadeAnim, getMediaPath, updateLogData, isPaused],
+    [handleEnd, fadeAnim, updateLogData, isPaused, videos.length],
   )
 
   const currentMedia = useMemo(

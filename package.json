@@ -66,7 +66,8 @@
     "react-native-screens": "~4.4.0",
     "react-native-toast-message": "^2.2.1",
     "react-native-video": "^6.9.1",
-    "react-native-web": "~0.19.6"
+    "react-native-web": "~0.19.6",
+    "rn-fetch-blob": "^0.12.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
