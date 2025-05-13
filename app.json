@@ -6,8 +6,8 @@
     "slug": "KDukaanTV",
     "scheme": "testapp",
     "version": "1.0.0",
-    "orientation": "default",
-    "userInterfaceStyle": "automatic",
+    "orientation": "landscape",
+    "userInterfaceStyle": "dark",
     "icon": "./assets/images/app-icon-all.png",
     "updates": {
       "fallbackToCacheTimeout": 0
@@ -21,7 +21,15 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-icon-android-adaptive-foreground.png",
         "backgroundImage": "./assets/images/app-icon-android-adaptive-background.png"
-      }
+      },
+      "jsEngine": "hermes",
+      "softwareKeyboardLayoutMode": "pan",
+      "splash": {
+        "backgroundColor": "#191015"
+      },
+      "permissions": ["INTERNET", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"],
+      "googleServicesFile": "./google-services.json",
+      "androidTv": true
     },
     "ios": {
       "icon": "./assets/images/app-icon-ios.png",

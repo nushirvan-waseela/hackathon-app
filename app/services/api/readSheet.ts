@@ -6,6 +6,9 @@ import axios from "axios"
 const SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1SYtdfMpcWkzci4UFdMBporvJ7Y6je_XXGmvJwduobb8/gviz/tq?tqx=out:json"
 
+// const SHEET_URL =
+//   "https://docs.google.com/spreadsheets/d/1wywH5P1ptaAFU_-xcD49KU1KstLaicl4cq2JtW0t22E/gviz/tq?tqx=out:json"
+
 export const fetchSheetData = async (tvID: string) => {
   try {
     // Fetch data from the Google Sheet
@@ -31,14 +34,18 @@ export const fetchSheetData = async (tvID: string) => {
     // Reformat the data
     const formattedData = {
       sheet1: sheetData
-        .map((row: any[]) => ({
-          contentId: row[1],
-          id: row[0],
-          link: row[4],
-          title: row[3],
-          tvId: row[2],
-          type: row[5].toLowerCase(),
-        }))
+        .map((row: any[]) => {
+          // Log each row to debug column mapping
+          console.log("Processing row:", row)
+          return {
+            contentId: row[1],
+            id: row[0],
+            link: row[5], // Google Drive URL is in column 5
+            title: row[3],
+            tvId: row[2],
+            type: row[4].toLowerCase(), // Media type is in column 4
+          }
+        })
         .filter((item: any) => String(item.tvId) === String(tvID)), // Filter based on tvId
     }
     console.log("formattedData =====> ", formattedData)

@@ -22,6 +22,26 @@
         "simulator": false
       }
     },
+    "android-tv": {
+      "extends": "preview",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease",
+        "artifactType": "apk"
+      }
+    },
+    "android-tv-local": {
+      "extends": "android-tv",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease",
+        "artifactType": "apk"
+      },
+      "developmentClient": false,
+      "distribution": "local",
+      "releaseChannel": "tv"
+    },
     "preview": {
       "extends": "production",
       "distribution": "internal",

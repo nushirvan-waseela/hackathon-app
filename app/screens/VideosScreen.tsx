@@ -9,6 +9,7 @@ import {
   Animated,
   Platform,
   View,
+  StatusBar,
 } from "react-native"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { AppStackScreenProps } from "@/navigators"
@@ -52,10 +53,12 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const videoPlayer = useRef(null)
-  const [mediaSize, setMediaSize] = useState<{ width: number; height: number }>({
-    width: Dimensions.get("window").width,
-    height: Dimensions.get("window").height * 0.7,
-  })
+  const isAndroidTV = Platform.OS === "android" && Platform.isTV
+
+  // Use the entire screen size for media dimensions
+  const screenWidth = Dimensions.get("window").width
+  const screenHeight = Dimensions.get("window").height
+
   const DEVICE_ID = loadString("deviceId")
   const fadeAnim = useRef(new Animated.Value(1)).current
   const [isTransitioning, setIsTransitioning] = useState(false)
@@ -66,6 +69,14 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
 
   // Keep track of timers to clean them up properly
   const timersRef = useRef<NodeJS.Timeout[]>([])
+
+  // Hide status bar for fullscreen experience
+  useEffect(() => {
+    StatusBar.setHidden(true, "none")
+    return () => {
+      StatusBar.setHidden(false, "none")
+    }
+  }, [])
 
   const clearAllTimers = useCallback(() => {
     timersRef.current.forEach((timer) => clearTimeout(timer))
@@ -221,22 +232,64 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
 
       if (media.type === "video") {
         return (
-          <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
+          <Animated.View
+            style={{ opacity: fadeAnim, flex: 1, width: screenWidth, height: screenHeight }}
+          >
             <Video
-              source={{ uri: `file://${filePath}` }}
+              source={{
+                uri: `file://${filePath}`,
+                type: "mp4",
+                headers: {
+                  Range: "bytes=0-", // Support range requests
+                },
+              }}
               ref={videoPlayer}
               onEnd={handleEnd}
-              onLoad={() => {
-                console.log("Video loaded successfully:", filePath)
+              progressUpdateInterval={1000} // Less frequent updates to reduce load
+              onProgress={(data) => {
+                // Only log occasionally to reduce console spam
+                if (Math.floor(data.currentTime) % 5 === 0) {
+                  console.log("Video progress:", Math.floor(data.currentTime))
+                }
+              }}
+              onLoad={(data) => {
+                console.log("Video loaded successfully:", filePath, data)
                 updateLogData(media)
               }}
-              resizeMode="contain"
-              style={$media}
+              onReadyForDisplay={() => {
+                console.log("Video ready for display:", filePath)
+              }}
+              resizeMode={isAndroidTV ? "cover" : "contain"} // Use 'cover' for TV to ensure fullscreen
+              style={$fullscreenMedia}
               repeat={videos.length === 1}
               paused={isPaused}
+              controls={false} // Hide controls as requested
+              fullscreen={isAndroidTV} // Force fullscreen mode on Android TV
+              ignoreSilentSwitch="ignore" // Play even in silent mode
+              playInBackground={false}
+              maxBitRate={2000000} // 2 Mbps - reasonable for mobile
+              bufferConfig={{
+                minBufferMs: 15000,
+                maxBufferMs: 50000,
+                bufferForPlaybackMs: 2500,
+                bufferForPlaybackAfterRebufferMs: 5000,
+              }}
               onError={(error) => {
                 console.error("Video error for file:", filePath, error)
+
+                // Show a toast error message
+                Toast.show({
+                  type: "error",
+                  text1: "Video Error",
+                  text2: "There was a problem playing this video",
+                  position: "bottom",
+                })
+
+                // Skip to next content
                 handleEnd()
+              }}
+              onBuffer={(data) => {
+                console.log("Video buffering:", data.isBuffering)
               }}
             />
           </Animated.View>
@@ -244,11 +297,13 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
       }
 
       return (
-        <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
+        <Animated.View
+          style={{ opacity: fadeAnim, flex: 1, width: screenWidth, height: screenHeight }}
+        >
           <Image
             source={{ uri: `file://${filePath}` }}
-            style={$media as ImageStyle}
-            resizeMode="contain"
+            style={$fullscreenMedia as ImageStyle}
+            resizeMode={isAndroidTV ? "cover" : "contain"} // Use 'cover' for TV to ensure fullscreen
             onLoad={() => {
               console.log("Image loaded successfully:", filePath)
               updateLogData(media)
@@ -261,7 +316,16 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
         </Animated.View>
       )
     },
-    [handleEnd, fadeAnim, updateLogData, isPaused, videos.length],
+    [
+      handleEnd,
+      fadeAnim,
+      updateLogData,
+      isPaused,
+      videos.length,
+      screenWidth,
+      screenHeight,
+      isAndroidTV,
+    ],
   )
 
   const currentMedia = useMemo(
@@ -287,11 +351,15 @@ export const VideosScreen: FC<VideosScreenProps> = observer(function VideosScree
 
   return (
     <>
+      <StatusBar hidden />
       <Screen style={$root} preset="fixed">
         {currentMedia ? (
-          <View style={$mediaContainer}>
+          <View style={$fullscreenMediaContainer}>
             {renderMedia(currentMedia)}
-            <Text text={`${currentIndex + 1}/${videos?.length}`} style={$counter} />
+            {/* Only show counter on non-TV devices */}
+            {!isAndroidTV && (
+              <Text text={`${currentIndex + 1}/${videos?.length}`} style={$counter} />
+            )}
           </View>
         ) : (
           <ActivityIndicator size="large" color="#ffffff" />
@@ -311,20 +379,27 @@ const $root: ViewStyle = {
   backgroundColor: "#000",
   alignItems: "center",
   justifyContent: "center",
+  padding: 0,
+  margin: 0,
 }
 
-const $mediaContainer: ViewStyle = {
+const $fullscreenMediaContainer: ViewStyle = {
   flex: 1,
   width: screenWidth,
   height: screenHeight,
   justifyContent: "center",
   alignItems: "center",
+  padding: 0,
+  margin: 0,
+  overflow: "hidden",
 }
 
-const $media: ViewStyle = {
+const $fullscreenMedia: ViewStyle = {
   width: screenWidth,
   height: screenHeight,
   backgroundColor: "#000",
+  padding: 0,
+  margin: 0,
 }
 
 const $counter: TextStyle = {
